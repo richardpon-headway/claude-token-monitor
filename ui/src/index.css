@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+/* Activity-Monitor-style dark only. We don't toggle on system preference;
+   the entire app is always dark. */
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+}
