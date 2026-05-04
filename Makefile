@@ -1,9 +1,8 @@
 .PHONY: install run dev test build-ui install-launchagent uninstall-launchagent clean
 
-# Default python for `uv sync`. Pinned to the Homebrew binary because the
-# pyenv shim hangs uv interpreter discovery on this machine. Override on
-# non-macOS dev boxes: `make install PYTHON=python3.13`.
-PYTHON ?= /opt/homebrew/bin/python3.13
+# Python version for `uv sync`. uv resolves this via PATH (mise/homebrew/etc.)
+# or downloads a managed standalone build if none is found.
+PYTHON ?= 3.13
 
 install:
 	uv sync --python $(PYTHON)
