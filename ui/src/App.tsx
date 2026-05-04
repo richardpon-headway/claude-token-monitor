@@ -1,14 +1,23 @@
+import { useState } from "react";
 import { useUsage } from "./hooks/useUsage";
 import { useUsageStream } from "./hooks/useUsageStream";
 import { QuotaBar } from "./components/QuotaBar";
-import type { Windows } from "./types";
+import { GroupByToggle } from "./components/GroupByToggle";
+import { UsageList } from "./components/UsageList";
+import type { GroupBy, GroupsResponse, Windows } from "./types";
 
 const fmt = (n: number) => n.toLocaleString();
 
 export default function App() {
   const { refreshKey, live } = useUsageStream();
-  const { data, error, loading } = useUsage<Windows>(
+  const [groupBy, setGroupBy] = useState<GroupBy>("topic");
+
+  const { data: windows } = useUsage<Windows>(
     "/api/usage/windows",
+    refreshKey,
+  );
+  const { data: groups, error: groupsError } = useUsage<GroupsResponse>(
+    `/api/usage/groups?by=${groupBy}`,
     refreshKey,
   );
 
@@ -34,31 +43,36 @@ export default function App() {
         </div>
       </header>
 
-      {data && (
+      {windows && (
         <div className="mb-6 max-w-xl">
-          <QuotaBar todayOutput={data.today_local.output} />
+          <QuotaBar todayOutput={windows.today_local.output} />
         </div>
       )}
 
-      {error && (
-        <div className="rounded border border-red-900 bg-red-950/50 px-3 py-2 text-sm text-red-200">
-          fetch error: {error.message}
-        </div>
-      )}
-
-      {loading && !data && (
-        <div className="text-sm text-zinc-500">loading …</div>
-      )}
-
-      {data && (
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-          <Tile label="today (local)" b={data.today_local} />
-          <Tile label="last 7d (local)" b={data.last_7d_local} />
-          <Tile label="last 30d (local)" b={data.last_30d_local} />
-          <Tile label="last 7d UTC" b={data.last_7d_utc} muted />
-          <Tile label="last 30d UTC" b={data.last_30d_utc} muted />
+      {windows && (
+        <section className="mb-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <Tile label="today (local)" b={windows.today_local} />
+          <Tile label="last 7d (local)" b={windows.last_7d_local} />
+          <Tile label="last 30d (local)" b={windows.last_30d_local} />
+          <Tile label="last 7d UTC" b={windows.last_7d_utc} muted />
+          <Tile label="last 30d UTC" b={windows.last_30d_utc} muted />
         </section>
       )}
+
+      <section className="mb-3 flex items-center justify-between">
+        <GroupByToggle value={groupBy} onChange={setGroupBy} />
+        <span className="text-xs text-zinc-500">
+          {groups ? `${groups.rows.length} ${groupBy}s` : ""}
+        </span>
+      </section>
+
+      {groupsError && (
+        <div className="rounded border border-red-900 bg-red-950/50 px-3 py-2 text-sm text-red-200">
+          fetch error: {groupsError.message}
+        </div>
+      )}
+
+      {groups && <UsageList by={groupBy} rows={groups.rows} />}
     </div>
   );
 }
@@ -78,7 +92,9 @@ function Tile({
         muted ? "bg-zinc-900/40" : "bg-zinc-900"
       } px-4 py-3`}
     >
-      <div className="text-xs uppercase tracking-wide text-zinc-500">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-zinc-500">
+        {label}
+      </div>
       <div className="mt-1 text-2xl font-semibold tabular-nums">
         {fmt(b.output)}
       </div>
