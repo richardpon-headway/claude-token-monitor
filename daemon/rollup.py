@@ -11,6 +11,10 @@ State held here:
   - seen_message_ids  : set[str]                   (passed to parser; persists across calls)
   - file_offsets      : dict[str, int]             (per-file resume point for the watcher)
   - by_minute_local   : dict[minute_iso, int]      (output tokens per local-time minute)
+  - prompt_ticket_state : dict[session_id, str|None]
+        Per-session "most recent user-prompt ticket mention" — passed in/out
+        of parse_file() so per-record topic resolution survives incremental
+        reads of the same session file.
 
 Project-level and topic-level views are derived on demand from by_session,
 so we don't have to keep them in sync on every ingest.
@@ -22,7 +26,6 @@ import threading
 from dataclasses import dataclass, field, replace
 
 from daemon.parser import ParseResult, UsageRecord
-from daemon.topics import assign_topic
 
 LOCAL_TZ = datetime.datetime.now().astimezone().tzinfo
 
@@ -35,16 +38,28 @@ class DayBucket:
 
 
 @dataclass
+class SegmentTotals:
+    """Per-(session, topic) totals. A session has one of these per topic
+    it touched. Sum across segments gives session totals; sum across
+    sessions for a given topic_id gives topic totals."""
+    output: int = 0
+    input: int = 0
+    messages: int = 0
+    last_at: datetime.datetime | None = None
+
+
+@dataclass
 class SessionInfo:
     session_id: str
     project: str
-    output: int = 0
+    output: int = 0  # cached sum across segments — kept in sync on ingest
     input: int = 0
     messages: int = 0
     started_at: datetime.datetime | None = None
     last_at: datetime.datetime | None = None
     early_user_prompts: list[str] = field(default_factory=list)
-    topic_id: str | None = None
+    topic_id: str | None = None  # dominant topic, recomputed on each ingest
+    segments: dict[str, SegmentTotals] = field(default_factory=dict)
 
 
 @dataclass
@@ -82,6 +97,9 @@ class Rollup:
         # local-time minute_iso -> output tokens that minute. Unbounded but tiny:
         # at most one entry per minute of actual activity (~minutes/day usage).
         self.by_minute_local: dict[str, int] = {}
+        # session_id -> running "current_prompt_ticket" used for per-record
+        # topic resolution. Persisted across incremental parses.
+        self.prompt_ticket_state: dict[str, str | None] = {}
 
     # --- writer side ----------------------------------------------------
 
@@ -92,6 +110,10 @@ class Rollup:
     def set_file_offset(self, path: str, offset: int) -> None:
         with self._lock:
             self.file_offsets[path] = offset
+
+    def prompt_ticket_for(self, session_id: str) -> str | None:
+        with self._lock:
+            return self.prompt_ticket_state.get(session_id)
 
     def load_cache_days(
         self,
@@ -145,12 +167,18 @@ class Rollup:
                 room = 5 - len(session.early_user_prompts)
                 session.early_user_prompts.extend(result.early_user_prompts[:room])
 
-            # (re)assign topic on each ingest — cheap, and lets a topic
-            # sharpen once more user prompts arrive.
-            session.topic_id = assign_topic(session.early_user_prompts, session.project)
-
             for rec in result.records:
                 self._apply_record(rec, session)
+
+            # Recompute dominant topic from the now-updated segments.
+            if session.segments:
+                session.topic_id = max(
+                    session.segments.items(),
+                    key=lambda kv: kv[1].output,
+                )[0]
+
+            # Persist the parser's ending prompt-ticket state for the next call.
+            self.prompt_ticket_state[result.session_id] = result.current_prompt_ticket
 
             if file_path is not None and result.bytes_read:
                 self.file_offsets[file_path] = result.bytes_read
@@ -159,6 +187,14 @@ class Rollup:
         session.output += rec.output_tokens
         session.input += rec.input_tokens
         session.messages += 1
+
+        # Per-(session, topic) segment — drives the topic-level rollup.
+        seg = session.segments.setdefault(rec.topic_id, SegmentTotals())
+        seg.output += rec.output_tokens
+        seg.input += rec.input_tokens
+        seg.messages += 1
+        if seg.last_at is None or rec.timestamp_utc > seg.last_at:
+            seg.last_at = rec.timestamp_utc
 
         utc_d = rec.timestamp_utc.date().isoformat()
         local_d = rec.timestamp_utc.astimezone(LOCAL_TZ).date().isoformat()
@@ -217,8 +253,14 @@ class Rollup:
 
     def snapshot_sessions(self) -> list[SessionInfo]:
         with self._lock:
-            return [replace(s, early_user_prompts=list(s.early_user_prompts))
-                    for s in self.by_session.values()]
+            return [
+                replace(
+                    s,
+                    early_user_prompts=list(s.early_user_prompts),
+                    segments={tid: replace(seg) for tid, seg in s.segments.items()},
+                )
+                for s in self.by_session.values()
+            ]
 
     def snapshot_projects(self) -> list[ProjectInfo]:
         with self._lock:
@@ -239,22 +281,25 @@ class Rollup:
             return [ProjectInfo(project=k, **v) for k, v in agg.items()]
 
     def snapshot_topics(self) -> list[TopicInfo]:
+        """Aggregate segments across all sessions. Each session contributes
+        once per topic it touched, so a single multi-topic session lifts
+        multiple topic rows."""
         with self._lock:
             agg: dict[str, dict] = {}
             for s in self.by_session.values():
-                key = s.topic_id or f"unclassified:{s.project}"
-                a = agg.setdefault(key, {
-                    "sessions": 0, "output": 0, "input": 0,
-                    "messages": 0, "last_at": None,
-                })
-                a["sessions"] += 1
-                a["output"] += s.output
-                a["input"] += s.input
-                a["messages"] += s.messages
-                if s.last_at is not None and (
-                    a["last_at"] is None or s.last_at > a["last_at"]
-                ):
-                    a["last_at"] = s.last_at
+                for tid, seg in s.segments.items():
+                    a = agg.setdefault(tid, {
+                        "sessions": 0, "output": 0, "input": 0,
+                        "messages": 0, "last_at": None,
+                    })
+                    a["sessions"] += 1
+                    a["output"] += seg.output
+                    a["input"] += seg.input
+                    a["messages"] += seg.messages
+                    if seg.last_at is not None and (
+                        a["last_at"] is None or seg.last_at > a["last_at"]
+                    ):
+                        a["last_at"] = seg.last_at
             return [TopicInfo(topic_id=k, **v) for k, v in agg.items()]
 
     def snapshot_timeseries(self, minutes: int) -> list[tuple[str, int]]:

@@ -52,7 +52,9 @@ def test_topic_assigned_from_prompt(make_session):
     ])
     r = Rollup()
     _ingest(r, projects_dir, path)
+    # Dominant topic recomputed from segments — only one segment, so it wins.
     assert r.by_session["s1"].topic_id == "COR-144"
+    assert "COR-144" in r.by_session["s1"].segments
 
 
 def test_topic_unclassified_when_no_ticket(make_session):
@@ -64,6 +66,46 @@ def test_topic_unclassified_when_no_ticket(make_session):
     r = Rollup()
     _ingest(r, projects_dir, path)
     assert r.by_session["s1"].topic_id == "unclassified:plain-project"
+
+
+def test_session_with_branch_switch_creates_two_segments(make_session):
+    """Mid-session branch switch should split tokens across two topic
+    segments, not lump them into one."""
+    projects_dir, write, record, now = make_session
+    path = write("plain-project", "s1", [
+        record(msg_id="m1", timestamp=now(), output=300, git_branch="feat/COR-144-foo"),
+        record(msg_id="m2", timestamp=now(), output=200, git_branch="feat/COR-119-bar"),
+    ])
+    r = Rollup()
+    _ingest(r, projects_dir, path)
+    s = r.by_session["s1"]
+    assert s.output == 500
+    assert set(s.segments.keys()) == {"COR-144", "COR-119"}
+    assert s.segments["COR-144"].output == 300
+    assert s.segments["COR-119"].output == 200
+    # Dominant topic is the one with the most output.
+    assert s.topic_id == "COR-144"
+
+
+def test_topic_aggregates_from_segments_across_sessions(make_session):
+    """A topic's totals = sum of all segments matching that topic across
+    every session that touched it."""
+    projects_dir, write, record, now = make_session
+    p1 = write("alpha", "s1", [
+        record(msg_id="a1", timestamp=now(), output=100, git_branch="feat/COR-144"),
+        record(msg_id="a2", timestamp=now(), output=50, git_branch="main"),
+    ])
+    p2 = write("alpha", "s2", [
+        record(msg_id="b1", timestamp=now(), output=200, git_branch="feat/COR-144"),
+    ])
+    r = Rollup()
+    _ingest(r, projects_dir, p1)
+    _ingest(r, projects_dir, p2)
+    by_topic = {t.topic_id: t for t in r.snapshot_topics()}
+    assert by_topic["COR-144"].output == 300  # 100 + 200
+    assert by_topic["COR-144"].sessions == 2  # both sessions touched it
+    assert by_topic["unclassified:alpha"].output == 50
+    assert by_topic["unclassified:alpha"].sessions == 1
 
 
 def test_load_cache_days_does_not_overwrite_logs(make_session):
