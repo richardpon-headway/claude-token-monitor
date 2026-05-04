@@ -95,6 +95,23 @@ def test_tail_offset_partial_line_safe(make_session, tmp_path):
     assert r2.records[0].output_tokens == 50
 
 
+def test_captures_git_branch_per_record(make_session):
+    """Each UsageRecord should carry the gitBranch field present in the
+    JSONL row, since branches change mid-session and drive per-record
+    topic attribution."""
+    projects_dir, write, record, now = make_session
+    path = write("p", "s", [
+        record(msg_id="m1", timestamp=now(), output=10,
+               git_branch="zendesk_trigger_setup_COR-144"),
+        record(msg_id="m2", timestamp=now(), output=20,
+               git_branch="main"),
+        record(msg_id="m3", timestamp=now(), output=30),  # no gitBranch
+    ])
+    r = parse_file(path, projects_dir=projects_dir, seen_message_ids=set())
+    branches = [rec.git_branch for rec in r.records]
+    assert branches == ["zendesk_trigger_setup_COR-144", "main", None]
+
+
 def test_project_resolution(make_session):
     projects_dir, write, record, now = make_session
     path = write("my-project-folder", "session-abc", [

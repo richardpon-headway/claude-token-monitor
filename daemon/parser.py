@@ -27,6 +27,7 @@ class UsageRecord:
     output_tokens: int
     input_tokens: int  # input + cache_creation + cache_read (matches usage.py)
     message_id: str | None
+    git_branch: str | None = None  # checked-out branch when this turn ran
 
 
 @dataclass
@@ -146,6 +147,7 @@ def parse_file(
             output_tokens=o,
             input_tokens=i + cc + cr,
             message_id=mid,
+            git_branch=rec.get("gitBranch") or None,
         ))
 
     return result
