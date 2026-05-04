@@ -22,6 +22,7 @@ import threading
 from dataclasses import dataclass, field, replace
 
 from daemon.parser import ParseResult, UsageRecord
+from daemon.topics import assign_topic
 
 LOCAL_TZ = datetime.datetime.now().astimezone().tzinfo
 
@@ -143,6 +144,10 @@ class Rollup:
             if result.early_user_prompts and len(session.early_user_prompts) < 5:
                 room = 5 - len(session.early_user_prompts)
                 session.early_user_prompts.extend(result.early_user_prompts[:room])
+
+            # (re)assign topic on each ingest — cheap, and lets a topic
+            # sharpen once more user prompts arrive.
+            session.topic_id = assign_topic(session.early_user_prompts, session.project)
 
             for rec in result.records:
                 self._apply_record(rec, session)
