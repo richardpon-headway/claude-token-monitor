@@ -17,8 +17,10 @@ run:
 	uv run python -m daemon.main
 
 dev:
-	@echo "TODO: run daemon + vite dev server in parallel"
-	@echo "(vite isn't scaffolded yet — use 'make run' until then)"
+	@echo "starting daemon (:47821) + vite dev (:5173 with /api proxy)"
+	@(uv run python -m daemon.main 2>&1 | sed 's/^/[daemon] /') & \
+	 (cd ui && pnpm dev 2>&1 | sed 's/^/[vite]   /') & \
+	 wait
 
 test:
 	uv run pytest tests/ -v

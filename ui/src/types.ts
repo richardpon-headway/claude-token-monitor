@@ -1,0 +1,67 @@
+// Mirrors the daemon's JSON response shapes (snake_case from Python dataclasses).
+
+export interface DayBucket {
+  output: number;
+  input: number;
+  messages: number;
+}
+
+export interface Windows {
+  today_local: DayBucket;
+  last_7d_local: DayBucket;
+  last_30d_local: DayBucket;
+  last_7d_utc: DayBucket;
+  last_30d_utc: DayBucket;
+}
+
+export interface ProjectRow {
+  project: string;
+  sessions: number;
+  output: number;
+  input: number;
+  messages: number;
+  last_at: string | null;
+}
+
+export interface SessionRow {
+  session_id: string;
+  project: string;
+  output: number;
+  input: number;
+  messages: number;
+  started_at: string | null;
+  last_at: string | null;
+  early_user_prompts: string[];
+  topic_id: string | null;
+}
+
+export interface TopicRow {
+  topic_id: string;
+  sessions: number;
+  output: number;
+  input: number;
+  messages: number;
+  last_at: string | null;
+  label: string;
+}
+
+export type GroupBy = "topic" | "session" | "project";
+export type RangeKey = "1h" | "24h" | "7d" | "30d";
+
+export type GroupRow = TopicRow | SessionRow | ProjectRow;
+
+export interface GroupsResponse {
+  by: GroupBy;
+  rows: GroupRow[];
+}
+
+export interface TimeseriesBucket {
+  t: string;
+  output: number;
+}
+
+export interface TimeseriesResponse {
+  range: RangeKey;
+  granularity: "minute" | "day";
+  buckets: TimeseriesBucket[];
+}
