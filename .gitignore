@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+ui/dist/
+.vite/
+*.log
+
+# Daemon build output (built UI copied here)
+daemon/static/
+
+# macOS
+.DS_Store
+
+# Env / secrets
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
