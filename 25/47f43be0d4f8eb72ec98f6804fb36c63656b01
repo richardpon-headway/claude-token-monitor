@@ -1,0 +1,44 @@
+.github/workflows/tests.yml
+  d65ea34b6f61fd51 37
+ui/package.json
+  d65ea34b6f61fd51 10-12
+ui/tsconfig.app.json
+  d65ea34b6f61fd51 17-18
+ui/src/hooks/useUsageStream.test.ts
+  d65ea34b6f61fd51 1-71
+ui/src/components/GroupByToggle.test.tsx
+  d65ea34b6f61fd51 1-22
+ui/src/test-setup.ts
+  d65ea34b6f61fd51 1-7
+ui/vite.config.ts
+  d65ea34b6f61fd51 1,17-21
+ui/src/hooks/useUsage.test.ts
+  d65ea34b6f61fd51 1-48
+ui/src/components/QuotaBar.test.tsx
+  d65ea34b6f61fd51 1-38
+ui/src/components/UsageList.test.tsx
+  d65ea34b6f61fd51 1-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "2547f43be0d4f8eb72ec98f6804fb36c63656b01",
+  "prompts": {
+    "d65ea34b6f61fd51": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9a7f6113-acbc-4a6a-9c47-d596851dfae0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Richard Pon",
+      "messages": [],
+      "total_additions": 292,
+      "total_deletions": 328,
+      "accepted_lines": 1057,
+      "overriden_lines": 0,
+      "custom_attributes": {
+        "runtime": "local"
+      }
+    }
+  }
+}
