@@ -20,10 +20,11 @@ Plan: `~/plans/plan-16-claude_token_monitor_app.md`.
 ## Quick start
 
 ```bash
-make install   # uv sync + pnpm install
-make dev       # daemon (:47821) + vite dev (:5173 with /api proxy)
+mise trust && mise install   # installs uv, node, pnpm at versions from mise.toml
+make install                 # uv sync + pnpm install
+make dev                     # daemon (:47821) + vite dev (:5173 with /api proxy)
 # or:
-make build-ui && make run   # production: daemon serves built bundle at /
+make build-ui && make run    # production: daemon serves built bundle at /
 ```
 
 In dev mode point your browser at http://localhost:5173 (Vite, hot-reload).
