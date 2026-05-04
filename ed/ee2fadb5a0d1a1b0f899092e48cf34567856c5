@@ -1,0 +1,28 @@
+.github/workflows/tests.yml
+  d65ea34b6f61fd51 19-37
+README.md
+  d65ea34b6f61fd51 15-17,23-26,29-32,34-35,37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "edee2fadb5a0d1a1b0f899092e48cf34567856c5",
+  "prompts": {
+    "d65ea34b6f61fd51": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9a7f6113-acbc-4a6a-9c47-d596851dfae0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Richard Pon",
+      "messages": [],
+      "total_additions": 382,
+      "total_deletions": 6,
+      "accepted_lines": 831,
+      "overriden_lines": 0,
+      "custom_attributes": {
+        "runtime": "local"
+      }
+    }
+  }
+}
