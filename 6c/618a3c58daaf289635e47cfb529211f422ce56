@@ -1,0 +1,32 @@
+pyproject.toml
+  5a315567c5ed147d 1-14
+README.md
+  5a315567c5ed147d 1-12
+.gitignore
+  5a315567c5ed147d 1-28
+Makefile
+  5a315567c5ed147d 1-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "6c618a3c58daaf289635e47cfb529211f422ce56",
+  "prompts": {
+    "5a315567c5ed147d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "319246be-f4f1-41f1-a9dd-87ccf5a5fbd7",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Richard Pon",
+      "messages": [],
+      "total_additions": 79,
+      "total_deletions": 0,
+      "accepted_lines": 79,
+      "overriden_lines": 0,
+      "custom_attributes": {
+        "runtime": "local"
+      }
+    }
+  }
+}
