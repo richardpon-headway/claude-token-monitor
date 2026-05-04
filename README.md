@@ -12,21 +12,29 @@ Plan: `~/plans/plan-16-claude_token_monitor_app.md`.
 ## Status
 
 - ✅ Daemon (FastAPI) — parser, in-memory rollup, watchdog file watcher, REST + SSE
-- ✅ Pytest suite + GitHub Actions CI
-- ⏳ Web UI (Vite + React + Tailwind + Recharts) — not yet scaffolded
+- ✅ Pytest suite + GitHub Actions CI (Python tests + UI typecheck/build)
+- ✅ Web UI (Vite + React 19 + Tailwind 4 + Recharts) — windows tiles, quota bar,
+     sortable group table (Topic / Session / Project), live time-series chart
 - ⏳ launchd autostart — out of v1 scope
 
 ## Quick start
 
 ```bash
-make install   # uv sync (pins python; skips pnpm until ui/ is scaffolded)
-make run       # boots the daemon on http://127.0.0.1:47821
+make install   # uv sync + pnpm install
+make dev       # daemon (:47821) + vite dev (:5173 with /api proxy)
+# or:
+make build-ui && make run   # production: daemon serves built bundle at /
 ```
 
-The daemon scans `~/.claude/projects/` at startup, fills in older days from
-`~/.claude/skills/token-usage/usage-cache.json`, then watches for changes.
+In dev mode point your browser at http://localhost:5173 (Vite, hot-reload).
+In production mode point it at http://127.0.0.1:47821 (daemon serves the
+built static bundle).
 
-Until the UI is built, hit the API directly:
+The daemon scans `~/.claude/projects/` at startup, fills in older days from
+`~/.claude/skills/token-usage/usage-cache.json`, then watches for changes
+and pushes them to the UI over SSE.
+
+Hit the API directly if you want:
 
 ```bash
 curl http://127.0.0.1:47821/api/usage/windows
