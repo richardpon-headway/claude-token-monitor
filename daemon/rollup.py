@@ -178,10 +178,17 @@ class Rollup:
     # --- reader side ---------------------------------------------------
 
     def snapshot_windows(self) -> dict:
-        """Today / 7d / 30d output totals (local + UTC)."""
+        """Today / 7d / 30d output totals (local + UTC).
+
+        Window semantics mirror usage.py:
+          - Local windows are "Last N days" inclusive of today (still ticking).
+          - UTC windows are "Last N complete UTC days" — today_utc EXCLUDED,
+            because the leaderboard reports completed UTC days only.
+        """
         with self._lock:
             today_local = datetime.datetime.now(LOCAL_TZ).date()
             today_utc = datetime.datetime.now(datetime.timezone.utc).date()
+            yesterday_utc = today_utc - datetime.timedelta(days=1)
             return {
                 "today_local": _window_totals(
                     self.by_day_local, today_local, today_local
@@ -198,13 +205,13 @@ class Rollup:
                 ),
                 "last_7d_utc": _window_totals(
                     self.by_day_utc,
-                    today_utc - datetime.timedelta(days=6),
-                    today_utc,
+                    today_utc - datetime.timedelta(days=7),
+                    yesterday_utc,
                 ),
                 "last_30d_utc": _window_totals(
                     self.by_day_utc,
-                    today_utc - datetime.timedelta(days=29),
-                    today_utc,
+                    today_utc - datetime.timedelta(days=30),
+                    yesterday_utc,
                 ),
             }
 

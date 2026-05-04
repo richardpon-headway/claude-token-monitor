@@ -113,6 +113,36 @@ def test_snapshot_projects_aggregates_sessions(make_session):
     assert by_proj["proj-y"].output == 50
 
 
+def test_utc_windows_exclude_today(make_session):
+    """usage.py's UTC windows are 'Last N complete UTC days' — today excluded.
+    Local windows include today (still-ticking). Regression for parity bug
+    found 2026-05-04 against /token-usage output."""
+    import datetime
+    projects_dir, write, record, now = make_session
+    today_utc = datetime.datetime.now(datetime.timezone.utc).date()
+    today_utc_iso = today_utc.isoformat()
+    yesterday_utc_iso = (today_utc - datetime.timedelta(days=1)).isoformat()
+    today_local = datetime.datetime.now().astimezone().date().isoformat()
+
+    r = Rollup()
+    # Seed today's UTC bucket only (a value impossible to ignore if included).
+    r.load_cache_days(
+        by_utc_date={
+            today_utc_iso: {"output": 1_000_000, "input": 0, "messages": 1},
+            yesterday_utc_iso: {"output": 7, "input": 0, "messages": 1},
+        },
+        by_local_date={
+            today_local: {"output": 5, "input": 0, "messages": 1},
+        },
+    )
+    w = r.snapshot_windows()
+    # UTC windows must exclude today_utc's 1M.
+    assert w["last_7d_utc"]["output"] == 7
+    assert w["last_30d_utc"]["output"] == 7
+    # Local "today" window must include today_local.
+    assert w["today_local"]["output"] == 5
+
+
 def test_file_offset_persists_across_calls(make_session):
     projects_dir, write, record, now = make_session
     ts = now()
