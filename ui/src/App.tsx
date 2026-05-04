@@ -4,13 +4,22 @@ import { useUsageStream } from "./hooks/useUsageStream";
 import { QuotaBar } from "./components/QuotaBar";
 import { GroupByToggle } from "./components/GroupByToggle";
 import { UsageList } from "./components/UsageList";
-import type { GroupBy, GroupsResponse, Windows } from "./types";
+import { RangeSwitcher } from "./components/RangeSwitcher";
+import { LiveChart } from "./components/LiveChart";
+import type {
+  GroupBy,
+  GroupsResponse,
+  RangeKey,
+  TimeseriesResponse,
+  Windows,
+} from "./types";
 
 const fmt = (n: number) => n.toLocaleString();
 
 export default function App() {
   const { refreshKey, live } = useUsageStream();
   const [groupBy, setGroupBy] = useState<GroupBy>("topic");
+  const [range, setRange] = useState<RangeKey>("1h");
 
   const { data: windows } = useUsage<Windows>(
     "/api/usage/windows",
@@ -18,6 +27,10 @@ export default function App() {
   );
   const { data: groups, error: groupsError } = useUsage<GroupsResponse>(
     `/api/usage/groups?by=${groupBy}`,
+    refreshKey,
+  );
+  const { data: ts } = useUsage<TimeseriesResponse>(
+    `/api/usage/timeseries?range=${range}`,
     refreshKey,
   );
 
@@ -67,12 +80,25 @@ export default function App() {
       </section>
 
       {groupsError && (
-        <div className="rounded border border-red-900 bg-red-950/50 px-3 py-2 text-sm text-red-200">
+        <div className="mb-3 rounded border border-red-900 bg-red-950/50 px-3 py-2 text-sm text-red-200">
           fetch error: {groupsError.message}
         </div>
       )}
 
-      {groups && <UsageList by={groupBy} rows={groups.rows} />}
+      {groups && (
+        <div className="mb-6">
+          <UsageList by={groupBy} rows={groups.rows} />
+        </div>
+      )}
+
+      <section className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm uppercase tracking-wide text-zinc-500">
+          activity
+        </h2>
+        <RangeSwitcher value={range} onChange={setRange} />
+      </section>
+
+      {ts && <LiveChart data={ts} range={range} />}
     </div>
   );
 }
