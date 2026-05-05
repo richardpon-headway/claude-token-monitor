@@ -51,6 +51,7 @@ export interface TopicRow {
   messages: number;
   last_at: string | null;
   label: string;
+  summary: string | null;
 }
 
 export type GroupBy = "topic" | "session" | "project";

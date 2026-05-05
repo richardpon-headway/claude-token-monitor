@@ -41,6 +41,18 @@ function shortTopic(t: string): string {
   return t.startsWith("unclassified:") ? "—" : t;
 }
 
+/** Render a topic-group row's label + optional summary inline. */
+function renderTopicCell(r: TopicRow): React.ReactNode {
+  return (
+    <span>
+      <span>{r.label}</span>
+      {r.summary && (
+        <span className="text-zinc-500"> · {r.summary}</span>
+      )}
+    </span>
+  );
+}
+
 /** Render a session row's topic column. Single-topic sessions show just
  *  the topic. Multi-topic sessions show the dominant + "+ next + N more"
  *  with a tooltip listing the full breakdown. */
@@ -81,7 +93,7 @@ function topicColumns(): ColumnDef[] {
   return [
     {
       key: "label", label: "Topic", align: "left",
-      render: (r) => isTopicRow(r) ? r.label : "",
+      render: (r) => isTopicRow(r) ? renderTopicCell(r) : "",
       sortVal: (r) => isTopicRow(r) ? r.label.toLowerCase() : "",
     },
     {
