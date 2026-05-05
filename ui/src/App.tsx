@@ -75,6 +75,22 @@ export default function App() {
       )}
 
       <section className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm uppercase tracking-wide text-zinc-500">
+          activity
+        </h2>
+        <div className="flex items-center gap-2">
+          <RangeSwitcher value={range} onChange={setRange} />
+          <TimezoneToggle value={tz} onChange={setTz} />
+        </div>
+      </section>
+
+      {ts && (
+        <div className="mb-6">
+          <LiveChart data={ts} range={range} tz={tz} />
+        </div>
+      )}
+
+      <section className="mb-3 flex items-center justify-between">
         <GroupByToggle value={groupBy} onChange={setGroupBy} />
         <span className="text-xs text-zinc-500">
           {groups ? `${groups.rows.length} ${groupBy}s` : ""}
@@ -87,23 +103,7 @@ export default function App() {
         </div>
       )}
 
-      {groups && (
-        <div className="mb-6">
-          <UsageList by={groupBy} rows={groups.rows} />
-        </div>
-      )}
-
-      <section className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm uppercase tracking-wide text-zinc-500">
-          activity
-        </h2>
-        <div className="flex items-center gap-2">
-          <RangeSwitcher value={range} onChange={setRange} />
-          <TimezoneToggle value={tz} onChange={setTz} />
-        </div>
-      </section>
-
-      {ts && <LiveChart data={ts} range={range} tz={tz} />}
+      {groups && <UsageList by={groupBy} rows={groups.rows} />}
     </div>
   );
 }
