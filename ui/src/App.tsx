@@ -134,8 +134,8 @@ function Tile({
         {fmt(b.messages)} msgs · {fmt(b.input)} input
       </div>
       {b.spark.length > 0 && (
-        <div className="mt-2">
-          <Sparkline data={b.spark} width={120} height={24} />
+        <div className="mt-2 w-full">
+          <Sparkline data={b.spark} height={24} />
         </div>
       )}
     </div>
