@@ -70,11 +70,8 @@ export default function App() {
           <Tile
             label="today (local)"
             b={windows.today_local}
-            // Cumulative running-sum line — climbs across the day from 0
-            // to today's total, crossing the dashed quota lines at each
-            // multiple of WORKDAY_FLOOR.
-            sparkMode="cumulative"
-            quotaPerBucket={WORKDAY_FLOOR}
+            // Hourly bars only — no cumulative line, no quota lines.
+            // QuotaBar above the tiles already shows today's % of floor.
           />
           <Tile
             label="last 7d (local)"
