@@ -66,34 +66,21 @@ export default function App() {
       )}
 
       {windows && (
-        <section className="mb-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <section className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Tile
-            label="today (local)"
-            b={windows.today_local}
-            // Hourly bars only — no cumulative line, no quota lines.
-            // QuotaBar above the tiles already shows today's % of floor.
+            label="today"
+            b={tz === "utc" ? windows.today_utc : windows.today_local}
+            // Hourly bars only — no quota lines on a single-day window.
           />
           <Tile
-            label="last 7d (local)"
-            b={windows.last_7d_local}
+            label="last 7d"
+            b={tz === "utc" ? windows.last_7d_utc : windows.last_7d_local}
             quotaPerBucket={WORKDAY_FLOOR}
           />
           <Tile
-            label="last 30d (local)"
-            b={windows.last_30d_local}
+            label="last 30d"
+            b={tz === "utc" ? windows.last_30d_utc : windows.last_30d_local}
             quotaPerBucket={WORKDAY_FLOOR}
-          />
-          <Tile
-            label="last 7d UTC"
-            b={windows.last_7d_utc}
-            quotaPerBucket={WORKDAY_FLOOR}
-            muted
-          />
-          <Tile
-            label="last 30d UTC"
-            b={windows.last_30d_utc}
-            quotaPerBucket={WORKDAY_FLOOR}
-            muted
           />
         </section>
       )}
@@ -154,7 +141,7 @@ function Tile({
     <div
       className={`relative overflow-hidden rounded-lg border border-zinc-800 ${
         muted ? "bg-zinc-900/40" : "bg-zinc-900"
-      } px-4 py-3`}
+      } px-5 py-4`}
     >
       {b.spark.length > 0 && (
         <Sparkline
