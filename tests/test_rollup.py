@@ -155,6 +155,30 @@ def test_snapshot_projects_aggregates_sessions(make_session):
     assert by_proj["proj-y"].output == 50
 
 
+def test_snapshot_windows_includes_spark_arrays(make_session):
+    """Each window in snapshot_windows() should ship a 'spark' array of the
+    expected length: 24 hourly buckets for today, 7 daily for 7d, 30 for
+    30d. Sums in spark should match the window's output total."""
+    projects_dir, write, record, now = make_session
+    path = write("p", "s", [
+        record(msg_id="m1", timestamp=now(), output=100),
+        record(msg_id="m2", timestamp=now(), output=200),
+    ])
+    r = Rollup()
+    _ingest(r, projects_dir, path)
+    w = r.snapshot_windows()
+    assert len(w["today_local"]["spark"]) == 24
+    assert len(w["last_7d_local"]["spark"]) == 7
+    assert len(w["last_30d_local"]["spark"]) == 30
+    assert len(w["last_7d_utc"]["spark"]) == 7
+    assert len(w["last_30d_utc"]["spark"]) == 30
+    # Today's hourly spark should sum to today's output total.
+    assert sum(w["today_local"]["spark"]) == w["today_local"]["output"]
+    # Local 7d/30d sums should match the headline output.
+    assert sum(w["last_7d_local"]["spark"]) == w["last_7d_local"]["output"]
+    assert sum(w["last_30d_local"]["spark"]) == w["last_30d_local"]["output"]
+
+
 def test_per_minute_dual_keyed_local_and_utc(make_session):
     """Each ingested record should land in BOTH by_minute_local and
     by_minute_utc with equal totals, so /api/usage/timeseries can serve

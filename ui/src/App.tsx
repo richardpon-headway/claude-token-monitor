@@ -7,6 +7,7 @@ import { UsageList } from "./components/UsageList";
 import { RangeSwitcher } from "./components/RangeSwitcher";
 import { LiveChart } from "./components/LiveChart";
 import { TimezoneToggle, type Tz } from "./components/TimezoneToggle";
+import { Sparkline } from "./components/Sparkline";
 import type {
   GroupBy,
   GroupsResponse,
@@ -66,11 +67,34 @@ export default function App() {
 
       {windows && (
         <section className="mb-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <Tile label="today (local)" b={windows.today_local} />
-          <Tile label="last 7d (local)" b={windows.last_7d_local} />
-          <Tile label="last 30d (local)" b={windows.last_30d_local} />
-          <Tile label="last 7d UTC" b={windows.last_7d_utc} muted />
-          <Tile label="last 30d UTC" b={windows.last_30d_utc} muted />
+          <Tile
+            label="today (local)"
+            b={windows.today_local}
+            // Hourly bars only — no cumulative line, no quota lines.
+            // QuotaBar above the tiles already shows today's % of floor.
+          />
+          <Tile
+            label="last 7d (local)"
+            b={windows.last_7d_local}
+            quotaPerBucket={WORKDAY_FLOOR}
+          />
+          <Tile
+            label="last 30d (local)"
+            b={windows.last_30d_local}
+            quotaPerBucket={WORKDAY_FLOOR}
+          />
+          <Tile
+            label="last 7d UTC"
+            b={windows.last_7d_utc}
+            quotaPerBucket={WORKDAY_FLOOR}
+            muted
+          />
+          <Tile
+            label="last 30d UTC"
+            b={windows.last_30d_utc}
+            quotaPerBucket={WORKDAY_FLOOR}
+            muted
+          />
         </section>
       )}
 
@@ -108,29 +132,48 @@ export default function App() {
   );
 }
 
+const WORKDAY_FLOOR = 233_333; // tokens/workday — matches the QuotaBar constant
+
 function Tile({
   label,
   b,
   muted = false,
+  quotaPerBucket,
+  sparkMode = "bars",
 }: {
   label: string;
-  b: { output: number; input: number; messages: number };
+  b: { output: number; input: number; messages: number; spark: number[] };
   muted?: boolean;
+  /** Per-bar quota for the dashed reference lines. */
+  quotaPerBucket?: number;
+  /** "bars" (default) for per-bucket bars; "cumulative" for a rising
+   *  area chart of running sums. */
+  sparkMode?: "bars" | "cumulative";
 }) {
   return (
     <div
-      className={`rounded-lg border border-zinc-800 ${
+      className={`relative overflow-hidden rounded-lg border border-zinc-800 ${
         muted ? "bg-zinc-900/40" : "bg-zinc-900"
       } px-4 py-3`}
     >
-      <div className="text-xs uppercase tracking-wide text-zinc-500">
-        {label}
-      </div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums">
-        {fmt(b.output)}
-      </div>
-      <div className="mt-1 text-xs text-zinc-500 tabular-nums">
-        {fmt(b.messages)} msgs · {fmt(b.input)} input
+      {b.spark.length > 0 && (
+        <Sparkline
+          data={b.spark}
+          mode={sparkMode}
+          quota={quotaPerBucket}
+          className="absolute inset-1 pointer-events-none"
+        />
+      )}
+      <div className="relative">
+        <div className="text-xs uppercase tracking-wide text-zinc-500">
+          {label}
+        </div>
+        <div className="mt-1 text-2xl font-semibold tabular-nums">
+          {fmt(b.output)}
+        </div>
+        <div className="mt-1 text-xs text-zinc-500 tabular-nums">
+          {fmt(b.messages)} msgs · {fmt(b.input)} input
+        </div>
       </div>
     </div>
   );
