@@ -2,59 +2,111 @@
 
 [![tests](https://github.com/richardpon-headway/claude-token-monitor/actions/workflows/tests.yml/badge.svg)](https://github.com/richardpon-headway/claude-token-monitor/actions/workflows/tests.yml)
 
-Local daemon + (planned) web UI for monitoring Claude Code token usage in real time.
-Reads JSONL transcripts under `~/.claude/projects/`, exposes a localhost web
-app that mirrors the `token-usage` skill's output and adds an Activity
-Monitor-style live view.
+Local daemon + web UI for monitoring Claude Code token usage in real time.
+Reads the JSONL transcripts under `~/.claude/projects/`, exposes a
+`127.0.0.1`-only web app that mirrors the `token-usage` skill's totals
+exactly and adds an Activity Monitor-style live view.
 
-Plan: `~/plans/plan-16-claude_token_monitor_app.md`.
+## Features
 
-## Status
-
-- ✅ Daemon (FastAPI) — parser, in-memory rollup, watchdog file watcher, REST + SSE
-- ✅ Pytest suite + GitHub Actions CI (Python tests + UI typecheck/build)
-- ✅ Web UI (Vite + React 19 + Tailwind 4 + Recharts) — windows tiles, quota bar,
-     sortable group table (Topic / Session / Project), live time-series chart
-- ⏳ launchd autostart — out of v1 scope
+- **Today / 7d / 30d tiles** with per-tile sparklines (today: hourly bars;
+  longer windows: daily bars + dashed 1× / 2× / N× quota lines).
+- **Quota bar** that auto-scales past 100% with vertical tick marks at every
+  100% increment, so 244% looks distinctly different from 105%.
+- **Activity chart** with adjustable range (`1h` / `4h` / `1d` / `7d` / `30d`)
+  and a `LOCAL ↔ UTC` toggle. Bars use sub-day buckets at the longer ranges
+  (1-hour buckets for 7d, 4-hour for 30d) — Datadog-style density.
+- **Topic / Session / Project table** that follows the same range selector.
+  Topics are extracted by regex from gitBranch, recent user prompts, and
+  project-folder names. Real Jira ticket summaries (via `acli`) plus
+  `claude -p` fallback for unticketed buckets.
+- **Live updates over SSE** — 100–600 ms typical latency from a token
+  landing on disk to the UI reflecting it. Falls back to 10 s polling
+  if SSE drops.
 
 ## Quick start
 
 ```bash
-mise trust && mise install   # installs uv, node, pnpm at versions from mise.toml
+mise trust && mise install   # installs uv, node, pnpm at versions in mise.toml
 make install                 # uv sync + pnpm install
 make dev                     # daemon (:47821) + vite dev (:5173 with /api proxy)
 # or:
 make build-ui && make run    # production: daemon serves built bundle at /
 ```
 
-In dev mode point your browser at http://localhost:5173 (Vite, hot-reload).
-In production mode point it at http://127.0.0.1:47821 (daemon serves the
+In dev mode point your browser at <http://localhost:5173> (Vite, hot-reload).
+In production mode point it at <http://127.0.0.1:47821> (daemon serves the
 built static bundle).
 
-The daemon scans `~/.claude/projects/` at startup, fills in older days from
-`~/.claude/skills/token-usage/usage-cache.json`, then watches for changes
-and pushes them to the UI over SSE.
+To stop, `Ctrl-C` the `make dev` / `make run` process. To restart after
+pulling new code, kill the daemon and re-run; the daemon reads its on-disk
+caches at startup so no state is lost.
 
-Hit the API directly if you want:
+## Long history (Claude Code retention setting)
+
+By default Claude Code only keeps transcripts for **30 days** and rotates
+older ones out. You can extend that via `~/.claude/settings.json`:
+
+```json
+{
+  "cleanupPeriodDays": 365
+}
+```
+
+Bump it to 90, 180, 365, or whatever makes sense — older transcripts will
+stick around in `~/.claude/projects/` and show up in the daemon's longer
+windows. Then tell the daemon to scan that far back via the
+`CLAUDE_TOKEN_MONITOR_HISTORY_DAYS` env var (defaults to 35 days, matching
+Claude's 30-day default + a 5-day buffer):
+
+```bash
+CLAUDE_TOKEN_MONITOR_HISTORY_DAYS=365 make run
+```
+
+The 30-day window in the UI represents the longest tile / chart range
+shipped today; with longer retention the daemon has more accurate
+per-session/per-topic context for queries that fall inside it (e.g. when
+a 30-day window ends on a session that started 45 days ago).
+
+## API
+
+Direct calls if you want to build something on top, or for debugging:
 
 ```bash
 curl http://127.0.0.1:47821/api/usage/windows
-curl 'http://127.0.0.1:47821/api/usage/groups?by=topic'
-curl 'http://127.0.0.1:47821/api/usage/timeseries?range=1h'
-curl http://127.0.0.1:47821/api/stream   # SSE; pushes a snapshot per change
+curl 'http://127.0.0.1:47821/api/usage/groups?by=topic&range=1h'
+curl 'http://127.0.0.1:47821/api/usage/timeseries?range=4h&tz=local'
+curl http://127.0.0.1:47821/api/stream    # SSE; pushes a snapshot per change
 ```
+
+`range` accepts `1h | 4h | 1d | 7d | 30d`. `tz` accepts `local | utc`.
 
 ## Tests
 
 ```bash
-make test
+make test             # pytest
+cd ui && pnpm test    # vitest
 ```
 
-Numbers are verified to match the existing `~/.claude/skills/token-usage`
-skill to-the-token (UTC windows exact; local windows match modulo
+Numbers are verified against the existing `~/.claude/skills/token-usage`
+skill (UTC windows match exactly to-the-token; local windows match modulo
 ongoing-usage drift between snapshots).
 
 ## Configuration
 
-- `CLAUDE_TOKEN_MONITOR_HOST` — bind address (default `127.0.0.1`)
-- `CLAUDE_TOKEN_MONITOR_PORT` — port (default `47821`)
+All knobs are env vars:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `CLAUDE_TOKEN_MONITOR_HOST` | `127.0.0.1` | bind address — keep on loopback unless you know what you're doing |
+| `CLAUDE_TOKEN_MONITOR_PORT` | `47821` | HTTP / SSE port |
+| `CLAUDE_TOKEN_MONITOR_HISTORY_DAYS` | `35` | how many days back to scan `~/.claude/projects/` at startup |
+
+Caches:
+
+- Token-usage skill cache: `~/.claude/skills/token-usage/usage-cache.json`
+  (per-day totals; the daemon reads it at startup to fill in days that
+  rotated out of the live JSONL window).
+- Topic-summary cache: `~/.cache/claude-token-monitor/topic-summaries.json`
+  (Jira titles + LLM-generated descriptions per topic; survives daemon
+  restarts so summaries reappear instantly).
