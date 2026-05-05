@@ -2,28 +2,12 @@ import { useMemo } from "react";
 import {
   Bar,
   BarChart,
-  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import type { RangeKey, TimeseriesResponse } from "../types";
-
-const WORKDAY_FLOOR = 233_333;
-const MINUTES_PER_DAY = 24 * 60;
-
-/** Per-bucket workday-floor reference value. The floor is "tokens per
- *  workday"; scale it by the bucket width to compare against per-bucket
- *  output. */
-function floorForBucket(granularity: TimeseriesResponse["granularity"]): number {
-  switch (granularity) {
-    case "minute": return WORKDAY_FLOOR / MINUTES_PER_DAY;
-    case "hour":   return WORKDAY_FLOOR / 24;
-    case "4hour":  return WORKDAY_FLOOR / 6;
-    case "day":    return WORKDAY_FLOOR;
-  }
-}
 
 /** Pads the buckets so missing time slices render as zeros. Daemon only
  *  returns slices with activity; UI fills the gaps so the chart has a
@@ -123,8 +107,6 @@ export function LiveChart({
     [data.buckets, range, data.granularity, tz],
   );
   const isMinute = data.granularity === "minute";
-  const floor1x = floorForBucket(data.granularity);
-  const floor2x = floor1x * 2;
   // Sub-day granularities show clock time on ticks; day-or-coarser show M/D.
   const tickFormatter = (ts: number) =>
     isMinute ? formatTickMinute(ts, tz) : formatTickDay(ts, tz);
@@ -174,18 +156,6 @@ export function LiveChart({
                   : d.toLocaleDateString(undefined, opts) + (tz === "utc" ? " UTC" : "");
               }}
               formatter={(v: number) => [v.toLocaleString(), "output tokens"]}
-            />
-            <ReferenceLine
-              y={floor1x}
-              stroke="#3f3f46"
-              strokeDasharray="3 3"
-              label={{ value: "1× floor", fill: "#71717a", fontSize: 10, position: "right" }}
-            />
-            <ReferenceLine
-              y={floor2x}
-              stroke="#52525b"
-              strokeDasharray="3 3"
-              label={{ value: "2× floor", fill: "#71717a", fontSize: 10, position: "right" }}
             />
             <Bar
               dataKey="output"
