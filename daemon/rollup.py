@@ -239,17 +239,19 @@ class Rollup:
         Each window also includes a `spark` array — output tokens per
         bucket — for rendering a sparkline on the corresponding tile:
           - today_local : 24 hourly buckets (0..23, today's local day)
-          - last_*d_local : N daily buckets, oldest first, ending today
-          - last_*d_utc   : N daily buckets, oldest first, ending yesterday_utc
+          - last_*d_*   : N daily buckets, oldest first, ending today
 
-        Window semantics mirror usage.py:
-          - Local windows are "Last N days" inclusive of today (still ticking).
-          - UTC windows are "Last N complete UTC days" — today_utc EXCLUDED.
+        Both LOCAL and UTC last 7d/30d windows include today (the
+        in-progress day). Earlier we excluded today_utc to mirror the
+        token-usage skill's leaderboard-aligned 'complete UTC days'
+        semantics, but that confused users who expected the rightmost
+        bar to be 'today' regardless of timezone. We give up exact
+        UTC parity with the skill in exchange for a simpler mental
+        model. Local totals still match the skill exactly.
         """
         with self._lock:
             today_local = datetime.datetime.now(LOCAL_TZ).date()
             today_utc = datetime.datetime.now(datetime.timezone.utc).date()
-            yesterday_utc = today_utc - datetime.timedelta(days=1)
 
             # Hourly sparks for "today" — local and UTC. Iterate the
             # corresponding minute dicts; cheap since they're bounded by
@@ -310,25 +312,25 @@ class Rollup:
                 "last_7d_utc": {
                     **_window_totals(
                         self.by_day_utc,
-                        today_utc - datetime.timedelta(days=7),
-                        yesterday_utc,
+                        today_utc - datetime.timedelta(days=6),
+                        today_utc,
                     ),
                     "spark": _daily_spark(
                         self.by_day_utc,
-                        today_utc - datetime.timedelta(days=7),
-                        yesterday_utc,
+                        today_utc - datetime.timedelta(days=6),
+                        today_utc,
                     ),
                 },
                 "last_30d_utc": {
                     **_window_totals(
                         self.by_day_utc,
-                        today_utc - datetime.timedelta(days=30),
-                        yesterday_utc,
+                        today_utc - datetime.timedelta(days=29),
+                        today_utc,
                     ),
                     "spark": _daily_spark(
                         self.by_day_utc,
-                        today_utc - datetime.timedelta(days=30),
-                        yesterday_utc,
+                        today_utc - datetime.timedelta(days=29),
+                        today_utc,
                     ),
                 },
             }
