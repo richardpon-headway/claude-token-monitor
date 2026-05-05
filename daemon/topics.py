@@ -20,11 +20,13 @@ from __future__ import annotations
 import re
 from collections import Counter
 
-# Match Jira-style ticket IDs. Negative lookbehind for any letter so the
-# ticket isn't fused with a preceding word (e.g. branch names like
-# 'zendesk_trigger_setup_COR-144' — `\b` alone fails because `_` is a word
-# char, so there's no boundary between `_` and `C`).
-TICKET_RE = re.compile(r"(?<![A-Za-z])([A-Z]{2,5}-\d+)\b")
+# Match Jira-style ticket IDs. Both ends use negative lookarounds rather
+# than `\b` because `_` is a word char in regex — so `\b` fails between
+# `_` and a letter on the left ('setup_COR-144') AND between a digit and
+# `_` on the right ('COR-185_wits...'). We want to allow `_` as a
+# separator on both sides while still rejecting alphanumeric runs that
+# would change the ticket value (e.g. 'XCOR-144' or 'COR-1850abc').
+TICKET_RE = re.compile(r"(?<![A-Za-z])([A-Z]{2,5}-\d+)(?![A-Za-z0-9])")
 
 
 def extract_tickets(text: str) -> list[str]:
