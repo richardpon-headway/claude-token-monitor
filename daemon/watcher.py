@@ -60,6 +60,7 @@ def initial_scan(
             projects_dir=projects_dir,
             seen_message_ids=rollup.seen_message_ids,
             start_offset=rollup.file_offset(str(path)),
+            current_prompt_ticket=rollup.prompt_ticket_for(path.stem),
         )
         rollup.ingest(result, file_path=str(path))
         count += 1
@@ -94,6 +95,7 @@ class _Handler(FileSystemEventHandler):
                 projects_dir=self.projects_dir,
                 seen_message_ids=self.rollup.seen_message_ids,
                 start_offset=self.rollup.file_offset(path_str),
+                current_prompt_ticket=self.rollup.prompt_ticket_for(path.stem),
             )
             if result.records or result.early_user_prompts:
                 self.rollup.ingest(result, file_path=path_str)

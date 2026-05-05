@@ -23,6 +23,13 @@ export interface ProjectRow {
   last_at: string | null;
 }
 
+export interface Segment {
+  output: number;
+  input: number;
+  messages: number;
+  last_at: string | null;
+}
+
 export interface SessionRow {
   session_id: string;
   project: string;
@@ -32,7 +39,8 @@ export interface SessionRow {
   started_at: string | null;
   last_at: string | null;
   early_user_prompts: string[];
-  topic_id: string | null;
+  topic_id: string | null; // dominant topic
+  segments: Record<string, Segment>;
 }
 
 export interface TopicRow {

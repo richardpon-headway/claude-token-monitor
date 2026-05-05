@@ -1,21 +1,30 @@
-"""Heuristic topic assignment for sessions.
+"""Heuristic topic assignment.
 
-v1 strategy: look for Jira-style ticket IDs (e.g. COR-144) in the first few
-user prompts and the project folder name. Most common ticket wins. Sessions
-with no ticket fall under 'unclassified:<project>'.
+Topics are Jira-style ticket IDs (e.g. COR-144) or 'unclassified:<project>'
+when no ticket can be found.
 
-Pure functions only — no state. Rollup calls assign_topic(prompts, project)
-on each ingest and stores the result on SessionInfo.topic_id.
+Two entry points:
+  - assign_topic_for_record(git_branch, current_prompt_ticket, project)
+        Per-record resolver used by the parser. Priority order:
+        gitBranch → most recent user-prompt mention in this session →
+        project folder → unclassified. This is the resolver of record.
+  - assign_topic(early_user_prompts, project)
+        Legacy session-level resolver. Still here for tests/backward-compat
+        but no longer used for primary attribution.
 
-Future-extension hook: swap the body of assign_topic() to use embeddings or
-LLM labeling without touching rollup or routes.
+Pure functions only — no state. Caller maintains "current_prompt_ticket"
+across records of the same session and passes it in.
 """
 from __future__ import annotations
 
 import re
 from collections import Counter
 
-TICKET_RE = re.compile(r"\b([A-Z]{2,5}-\d+)\b")
+# Match Jira-style ticket IDs. Negative lookbehind for any letter so the
+# ticket isn't fused with a preceding word (e.g. branch names like
+# 'zendesk_trigger_setup_COR-144' — `\b` alone fails because `_` is a word
+# char, so there's no boundary between `_` and `C`).
+TICKET_RE = re.compile(r"(?<![A-Za-z])([A-Z]{2,5}-\d+)\b")
 
 
 def extract_tickets(text: str) -> list[str]:
@@ -24,25 +33,40 @@ def extract_tickets(text: str) -> list[str]:
     return TICKET_RE.findall(text)
 
 
-def assign_topic(early_user_prompts: list[str], project: str) -> str:
-    """Return a topic key for a session.
+def assign_topic_for_record(
+    git_branch: str | None,
+    current_prompt_ticket: str | None,
+    project: str,
+) -> str:
+    """Resolve the topic for a single usage record.
 
-    Topic keys are either a ticket id (e.g. 'COR-144') or 'unclassified:<project>'.
+    Priority: gitBranch (highest, most reliable signal) > most-recent
+    user-prompt ticket mention in this session > project folder > unclassified.
+    """
+    if git_branch:
+        tickets = extract_tickets(git_branch)
+        if tickets:
+            return tickets[0]
+    if current_prompt_ticket:
+        return current_prompt_ticket
+    folder_tickets = extract_tickets(project)
+    if folder_tickets:
+        return folder_tickets[0]
+    return f"unclassified:{project}"
+
+
+def assign_topic(early_user_prompts: list[str], project: str) -> str:
+    """Legacy session-level topic assignment (most-common ticket wins).
+
+    Kept for backward-compat tests; the per-record resolver above is the
+    primary path now.
     """
     counts: Counter[str] = Counter()
-    # Project folder names like 'headway-worktree-COR-144-foo' often carry the
-    # ticket; weight them the same as a single prompt mention. The 'most
-    # common ticket wins' tiebreak then prefers the one the user actually
-    # talked about most in early turns.
     counts.update(extract_tickets(project))
     for p in early_user_prompts[:5]:
         counts.update(extract_tickets(p))
-
     if not counts:
         return f"unclassified:{project}"
-    # Counter.most_common returns ties in insertion order; project tickets
-    # are inserted first, so a ticket present only in the folder name still
-    # wins over no ticket at all but loses to one mentioned in prompts.
     return counts.most_common(1)[0][0]
 
 
