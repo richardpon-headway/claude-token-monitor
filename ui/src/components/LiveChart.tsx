@@ -32,6 +32,7 @@ function padBuckets(
   buckets: TimeseriesResponse["buckets"],
   range: RangeKey,
   granularity: TimeseriesResponse["granularity"],
+  tz: "local" | "utc" = "local",
 ): { t: string; output: number; ts: number }[] {
   const have = new Map<number, number>(
     buckets.map((b) => [Math.floor(new Date(b.t).getTime() / 60_000), b.output]),
@@ -59,16 +60,26 @@ function padBuckets(
   };
   const total = totalBars[range];
 
-  // Anchor the rightmost bucket to LOCAL midnight + N*widthMs. The daemon
-  // does the same on its side ('round down to nearest bucket within the
-  // local day'), so this is what makes minute-key lookups match. For
-  // widthMin in {1, 60, 240, 1440} (all factors of 1440) the alignment
-  // also continues across day boundaries when we walk backward.
-  const dayStart = new Date(now);
-  dayStart.setHours(0, 0, 0, 0);
-  const msSinceMidnight = now.getTime() - dayStart.getTime();
+  // Anchor the rightmost bucket to midnight + N*widthMs in the chosen
+  // timezone. The daemon aggregates per-tz on its side so this match is
+  // what keeps lookups from missing for hour/4hour buckets. For widthMin
+  // in {1, 60, 240, 1440} (all factors of 1440) the alignment also stays
+  // correct across day boundaries when walking backward.
+  const dayStartMs =
+    tz === "utc"
+      ? Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate(),
+        )
+      : (() => {
+          const d = new Date(now);
+          d.setHours(0, 0, 0, 0);
+          return d.getTime();
+        })();
+  const msSinceMidnight = now.getTime() - dayStartMs;
   const nowBucketMs =
-    dayStart.getTime() + Math.floor(msSinceMidnight / widthMs) * widthMs;
+    dayStartMs + Math.floor(msSinceMidnight / widthMs) * widthMs;
   const startMs = nowBucketMs - (total - 1) * widthMs;
 
   for (let i = 0; i < total; i++) {
@@ -85,31 +96,38 @@ function padBuckets(
 
 function pad(n: number): string { return String(n).padStart(2, "0"); }
 
-function formatTickMinute(ts: number): string {
+function formatTickMinute(ts: number, tz: "local" | "utc"): string {
   const d = new Date(ts);
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return tz === "utc"
+    ? `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
+    : `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
-function formatTickDay(ts: number): string {
+function formatTickDay(ts: number, tz: "local" | "utc"): string {
   const d = new Date(ts);
-  return `${d.getMonth() + 1}/${d.getDate()}`;
+  return tz === "utc"
+    ? `${d.getUTCMonth() + 1}/${d.getUTCDate()}`
+    : `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
 export function LiveChart({
   data,
   range,
+  tz = "local",
 }: {
   data: TimeseriesResponse;
   range: RangeKey;
+  tz?: "local" | "utc";
 }) {
   const padded = useMemo(
-    () => padBuckets(data.buckets, range, data.granularity),
-    [data.buckets, range, data.granularity],
+    () => padBuckets(data.buckets, range, data.granularity, tz),
+    [data.buckets, range, data.granularity, tz],
   );
   const isMinute = data.granularity === "minute";
   const floor1x = floorForBucket(data.granularity);
   const floor2x = floor1x * 2;
   // Sub-day granularities show clock time on ticks; day-or-coarser show M/D.
-  const tickFormatter = isMinute ? formatTickMinute : formatTickDay;
+  const tickFormatter = (ts: number) =>
+    isMinute ? formatTickMinute(ts, tz) : formatTickDay(ts, tz);
 
   return (
     <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
@@ -148,7 +166,12 @@ export function LiveChart({
               }}
               labelFormatter={(ts: number | string) => {
                 const d = new Date(Number(ts));
-                return isMinute ? d.toLocaleString() : d.toLocaleDateString();
+                const opts: Intl.DateTimeFormatOptions = tz === "utc"
+                  ? { timeZone: "UTC" }
+                  : {};
+                return isMinute
+                  ? d.toLocaleString(undefined, opts) + (tz === "utc" ? " UTC" : "")
+                  : d.toLocaleDateString(undefined, opts) + (tz === "utc" ? " UTC" : "");
               }}
               formatter={(v: number) => [v.toLocaleString(), "output tokens"]}
             />

@@ -94,9 +94,13 @@ class Rollup:
         self.by_session: dict[str, SessionInfo] = {}
         self.seen_message_ids: set[str] = set()
         self.file_offsets: dict[str, int] = {}
-        # local-time minute_iso -> output tokens that minute. Unbounded but tiny:
-        # at most one entry per minute of actual activity (~minutes/day usage).
+        # Per-minute output tokens, dual-keyed so the timeseries endpoint can
+        # serve either timezone without re-aggregating raw records:
+        #   by_minute_local[local_iso] = tokens
+        #   by_minute_utc[utc_iso]     = tokens
+        # Both unbounded but tiny (one entry per minute of actual activity).
         self.by_minute_local: dict[str, int] = {}
+        self.by_minute_utc: dict[str, int] = {}
         # session_id -> running "current_prompt_ticket" used for per-record
         # topic resolution. Persisted across incremental parses.
         self.prompt_ticket_state: dict[str, str | None] = {}
@@ -208,8 +212,14 @@ class Rollup:
         b_loc.messages += 1
 
         local_dt = rec.timestamp_utc.astimezone(LOCAL_TZ)
-        m = _minute_iso(local_dt)
-        self.by_minute_local[m] = self.by_minute_local.get(m, 0) + rec.output_tokens
+        m_local = _minute_iso(local_dt)
+        self.by_minute_local[m_local] = (
+            self.by_minute_local.get(m_local, 0) + rec.output_tokens
+        )
+        m_utc = _minute_iso(rec.timestamp_utc.astimezone(datetime.timezone.utc))
+        self.by_minute_utc[m_utc] = (
+            self.by_minute_utc.get(m_utc, 0) + rec.output_tokens
+        )
 
     # --- reader side ---------------------------------------------------
 
@@ -302,20 +312,26 @@ class Rollup:
                         a["last_at"] = seg.last_at
             return [TopicInfo(topic_id=k, **v) for k, v in agg.items()]
 
-    def snapshot_timeseries(self, minutes: int) -> list[tuple[str, int]]:
-        """Last `minutes` 1-minute buckets, oldest first.
-
-        Returns only minutes for which we recorded activity; missing minutes
-        are not zero-filled here — the UI fills gaps. Caller picks the window
-        size (e.g. 60 for 1h, 1440 for 24h).
+    def snapshot_timeseries(
+        self, minutes: int, *, tz: str = "local",
+    ) -> list[tuple[str, int]]:
+        """Last `minutes` 1-minute buckets, oldest first, in the requested
+        timezone. tz='local' returns local-time iso keys; tz='utc' returns
+        UTC iso keys. Missing minutes are not zero-filled — the UI does that.
         """
-        cutoff_dt = datetime.datetime.now(LOCAL_TZ).replace(
-            second=0, microsecond=0
-        ) - datetime.timedelta(minutes=minutes)
+        if tz == "utc":
+            now = datetime.datetime.now(datetime.timezone.utc)
+            source = self.by_minute_utc
+        else:
+            now = datetime.datetime.now(LOCAL_TZ)
+            source = self.by_minute_local
+        cutoff_dt = now.replace(second=0, microsecond=0) - datetime.timedelta(
+            minutes=minutes
+        )
         cutoff = _minute_iso(cutoff_dt)
         with self._lock:
             return sorted(
-                ((m, v) for m, v in self.by_minute_local.items() if m >= cutoff),
+                ((m, v) for m, v in source.items() if m >= cutoff),
                 key=lambda x: x[0],
             )
 

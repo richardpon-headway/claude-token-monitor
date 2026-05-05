@@ -6,6 +6,7 @@ import { GroupByToggle } from "./components/GroupByToggle";
 import { UsageList } from "./components/UsageList";
 import { RangeSwitcher } from "./components/RangeSwitcher";
 import { LiveChart } from "./components/LiveChart";
+import { TimezoneToggle, type Tz } from "./components/TimezoneToggle";
 import type {
   GroupBy,
   GroupsResponse,
@@ -20,6 +21,7 @@ export default function App() {
   const { refreshKey, live } = useUsageStream();
   const [groupBy, setGroupBy] = useState<GroupBy>("topic");
   const [range, setRange] = useState<RangeKey>("1h");
+  const [tz, setTz] = useState<Tz>("local");
 
   const { data: windows } = useUsage<Windows>(
     "/api/usage/windows",
@@ -30,7 +32,7 @@ export default function App() {
     refreshKey,
   );
   const { data: ts } = useUsage<TimeseriesResponse>(
-    `/api/usage/timeseries?range=${range}`,
+    `/api/usage/timeseries?range=${range}&tz=${tz}`,
     refreshKey,
   );
 
@@ -95,10 +97,13 @@ export default function App() {
         <h2 className="text-sm uppercase tracking-wide text-zinc-500">
           activity
         </h2>
-        <RangeSwitcher value={range} onChange={setRange} />
+        <div className="flex items-center gap-2">
+          <RangeSwitcher value={range} onChange={setRange} />
+          <TimezoneToggle value={tz} onChange={setTz} />
+        </div>
       </section>
 
-      {ts && <LiveChart data={ts} range={range} />}
+      {ts && <LiveChart data={ts} range={range} tz={tz} />}
     </div>
   );
 }
