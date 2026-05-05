@@ -163,11 +163,17 @@ function Tile({
         <div className="text-xs uppercase tracking-wide text-zinc-500">
           {label}
         </div>
-        <div className="mt-1 text-2xl font-semibold tabular-nums">
-          {fmt(b.output)}
+        <div className="mt-1 flex items-baseline gap-1.5">
+          <span className="text-2xl font-semibold tabular-nums">
+            {fmt(b.output)}
+          </span>
+          <span className="text-[10px] uppercase tracking-wide text-zinc-500">
+            output
+          </span>
         </div>
         <div className="mt-1 text-xs text-zinc-500 tabular-nums">
-          {fmt(b.messages)} msgs · {fmt(b.input)} input
+          <span className="text-zinc-400">{fmt(b.input)}</span> input ·{" "}
+          {fmt(b.messages)} msgs
         </div>
       </div>
     </div>
