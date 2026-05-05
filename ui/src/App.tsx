@@ -168,12 +168,14 @@ function Tile({
             {fmt(b.output)}
           </span>
           <span className="text-[10px] uppercase tracking-wide text-zinc-500">
-            output
+            output tokens
           </span>
         </div>
-        <div className="mt-1 text-xs text-zinc-500 tabular-nums">
-          <span className="text-zinc-400">{fmt(b.input)}</span> input ·{" "}
-          {fmt(b.messages)} msgs
+        <div className="mt-1 flex items-baseline gap-4 text-xs text-zinc-500 tabular-nums">
+          <span>
+            <span className="text-zinc-400">{fmt(b.input)}</span> input tokens
+          </span>
+          <span>{fmt(b.messages)} messages</span>
         </div>
       </div>
     </div>
