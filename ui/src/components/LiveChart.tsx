@@ -169,6 +169,10 @@ export function LiveChart({
               axisLine={{ stroke: "#3f3f46" }}
               tickFormatter={(v: number) => abbr(v)}
               width={48}
+              // Small bottom padding so bars don't sit flush on the
+              // x-axis line (which made them look like they were
+              // overflowing past it).
+              padding={{ bottom: 2, top: 4 }}
             />
             <Tooltip
               cursor={{ fill: "#27272a", opacity: 0.5 }}
