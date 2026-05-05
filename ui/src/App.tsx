@@ -120,24 +120,27 @@ function Tile({
 }) {
   return (
     <div
-      className={`rounded-lg border border-zinc-800 ${
+      className={`relative overflow-hidden rounded-lg border border-zinc-800 ${
         muted ? "bg-zinc-900/40" : "bg-zinc-900"
       } px-4 py-3`}
     >
-      <div className="text-xs uppercase tracking-wide text-zinc-500">
-        {label}
-      </div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums">
-        {fmt(b.output)}
-      </div>
-      <div className="mt-1 text-xs text-zinc-500 tabular-nums">
-        {fmt(b.messages)} msgs · {fmt(b.input)} input
-      </div>
       {b.spark.length > 0 && (
-        <div className="mt-2 w-full">
-          <Sparkline data={b.spark} height={24} />
-        </div>
+        <Sparkline
+          data={b.spark}
+          className="absolute inset-0 pointer-events-none"
+        />
       )}
+      <div className="relative">
+        <div className="text-xs uppercase tracking-wide text-zinc-500">
+          {label}
+        </div>
+        <div className="mt-1 text-2xl font-semibold tabular-nums">
+          {fmt(b.output)}
+        </div>
+        <div className="mt-1 text-xs text-zinc-500 tabular-nums">
+          {fmt(b.messages)} msgs · {fmt(b.input)} input
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,19 +1,19 @@
-/** Tiny SVG bar sparkline. No axes, no labels — the parent tile carries
- *  the headline number. Last bar is emphasized so the eye lands on "now".
- *  Muted zinc fill so the tile stays visually secondary to the chart.
+/** Tiny SVG bar sparkline. Positioned-by-the-caller (defaults to width
+ *  and height of 100% of the parent), with `preserveAspectRatio="none"`
+ *  so bars stretch in both axes. Use as a tile background by giving
+ *  the parent `relative` and the sparkline `absolute inset-0`.
  *
- *  The SVG is `width="100%"` with `preserveAspectRatio="none"`, so bars
- *  stretch to fill the parent container's width. The viewBox uses a
- *  fixed internal coordinate system (100 wide), independent of the
- *  rendered pixel width. */
+ *  Colors: emerald at low alpha so the bars don't fight the text on top.
+ *  Latest bar slightly brighter so the eye lands on "now". */
 const VB_WIDTH = 100;
+const VB_HEIGHT = 100;
 
 export function Sparkline({
   data,
-  height = 28,
+  className,
 }: {
   data: number[];
-  height?: number;
+  className?: string;
 }) {
   if (data.length === 0) return null;
   const max = Math.max(...data, 1);
@@ -26,17 +26,17 @@ export function Sparkline({
   return (
     <svg
       width="100%"
-      height={height}
-      viewBox={`0 0 ${VB_WIDTH} ${height}`}
+      height="100%"
+      viewBox={`0 0 ${VB_WIDTH} ${VB_HEIGHT}`}
       role="img"
       aria-label="trend"
       preserveAspectRatio="none"
-      className="block"
+      className={className}
     >
       {data.map((v, i) => {
-        const h = Math.max((v / max) * height, v > 0 ? 1 : 0);
+        const h = Math.max((v / max) * VB_HEIGHT, v > 0 ? 1 : 0);
         const x = i * (barW + gap);
-        const y = height - h;
+        const y = VB_HEIGHT - h;
         const isLast = i === data.length - 1;
         return (
           <rect
@@ -45,8 +45,9 @@ export function Sparkline({
             y={y}
             width={barW}
             height={h}
-            // muted zinc; last bar slightly brighter
-            fill={isLast ? "#a1a1aa" : "#52525b"}
+            // emerald-500 at low alpha — keeps text readable on top.
+            // Last bar at higher alpha so the eye lands on "now".
+            fill={isLast ? "rgba(16, 185, 129, 0.45)" : "rgba(16, 185, 129, 0.22)"}
           />
         );
       })}

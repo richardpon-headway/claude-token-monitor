@@ -22,15 +22,23 @@ describe("Sparkline", () => {
     expect(container.querySelector("svg")).toBeNull();
   });
 
-  it("scales bars to the max value (no zero-height bar for non-zero data)", () => {
-    const { container } = render(<Sparkline data={[10, 0, 20]} height={20} />);
+  it("scales bar heights to the max value within the viewBox coordinate system", () => {
+    const { container } = render(<Sparkline data={[10, 0, 20]} />);
     const rects = container.querySelectorAll("rect");
     const heights = Array.from(rects).map((r) =>
       Number(r.getAttribute("height")),
     );
-    // Bar at index 0 is 10/20 of full height; index 2 hits full; index 1 is 0.
-    expect(heights[2]).toBeCloseTo(20);
+    // viewBox height is 100; max value (20) hits 100; half (10) hits ~50; 0 stays 0.
+    expect(heights[2]).toBeCloseTo(100);
+    expect(heights[0]).toBeCloseTo(50);
     expect(heights[1]).toBe(0);
-    expect(heights[0]).toBeGreaterThan(0);
+  });
+
+  it("forwards className to the SVG so callers can position it", () => {
+    const { container } = render(
+      <Sparkline data={[1, 2]} className="absolute inset-0" />,
+    );
+    const svg = container.querySelector("svg");
+    expect(svg?.getAttribute("class")).toContain("absolute");
   });
 });
