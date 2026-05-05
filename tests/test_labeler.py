@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -206,3 +207,118 @@ def test_save_cache_creates_parent_dir(tmp_path):
     p = tmp_path / "nested" / "deep" / "cache.json"
     labeler.save_cache({}, p)
     assert p.exists()
+
+
+# --- Labeler (background thread + tick logic) ----------------------------
+
+class _FakeTopic:
+    def __init__(self, topic_id):
+        self.topic_id = topic_id
+
+
+class _FakeSession:
+    def __init__(self, segments, early_user_prompts):
+        self.segments = segments
+        self.early_user_prompts = early_user_prompts
+
+
+class _FakeRollup:
+    def __init__(self, topics, sessions):
+        self._topics = topics
+        self._sessions = sessions
+    def snapshot_topics(self):
+        return [_FakeTopic(t) for t in self._topics]
+    def snapshot_sessions(self):
+        return list(self._sessions)
+
+
+def test_labeler_get_summary_returns_cached_value(tmp_path, monkeypatch):
+    rollup = _FakeRollup([], [])
+    monkeypatch.setattr(labeler, "summarize_topic", lambda *a, **kw: None)
+    lab = labeler.Labeler(rollup, cache_path=tmp_path / "c.json")
+    assert lab.get_summary("missing") is None
+    # Inject a cached entry directly
+    lab._cache["COR-144"] = labeler.CachedSummary("hi", time.time())
+    assert lab.get_summary("COR-144") == "hi"
+
+
+def test_labeler_tick_processes_pending_skips_fresh(tmp_path, monkeypatch):
+    rollup = _FakeRollup(
+        topics=["COR-144", "COR-119"],
+        sessions=[_FakeSession({"COR-144": object(), "COR-119": object()},
+                                ["fix the webhook"])],
+    )
+    calls: list[str] = []
+    monkeypatch.setattr(labeler, "summarize_topic",
+                        lambda tid, prompts: (calls.append(tid), f"sum:{tid}")[1])
+    lab = labeler.Labeler(rollup, cache_path=tmp_path / "c.json")
+    # Pre-seed COR-144 as fresh — tick should skip it
+    lab._cache["COR-144"] = labeler.CachedSummary("old", time.time())
+
+    n = lab.tick()
+    assert n == 1
+    assert calls == ["COR-119"]
+    assert lab.get_summary("COR-144") == "old"
+    assert lab.get_summary("COR-119") == "sum:COR-119"
+
+
+def test_labeler_tick_caps_at_max_per_tick(tmp_path, monkeypatch):
+    rollup = _FakeRollup(
+        topics=[f"COR-{i}" for i in range(50)],
+        sessions=[_FakeSession({f"COR-{i}": object() for i in range(50)}, ["x"])],
+    )
+    monkeypatch.setattr(labeler, "summarize_topic", lambda tid, prompts: f"s:{tid}")
+    lab = labeler.Labeler(rollup, cache_path=tmp_path / "c.json", max_per_tick=5)
+    n = lab.tick()
+    assert n == 5
+    assert sum(1 for tid in [f"COR-{i}" for i in range(50)]
+               if lab.get_summary(tid) is not None) == 5
+
+
+def test_labeler_tick_persists_cache(tmp_path, monkeypatch):
+    rollup = _FakeRollup(
+        topics=["COR-144"],
+        sessions=[_FakeSession({"COR-144": object()}, ["fix the webhook"])],
+    )
+    monkeypatch.setattr(labeler, "summarize_topic", lambda tid, prompts: "webhook")
+    cache_path = tmp_path / "c.json"
+    lab = labeler.Labeler(rollup, cache_path=cache_path)
+    lab.tick()
+    # Reload cache from disk to verify it was written
+    reloaded = labeler.load_cache(cache_path)
+    assert reloaded["COR-144"].summary == "webhook"
+
+
+def test_labeler_tick_skips_when_summarize_returns_none(tmp_path, monkeypatch):
+    rollup = _FakeRollup(
+        topics=["COR-144"],
+        sessions=[_FakeSession({"COR-144": object()}, ["x"])],
+    )
+    monkeypatch.setattr(labeler, "summarize_topic", lambda tid, prompts: None)
+    lab = labeler.Labeler(rollup, cache_path=tmp_path / "c.json")
+    n = lab.tick()
+    assert n == 0
+    assert lab.get_summary("COR-144") is None  # nothing cached
+
+
+def test_labeler_collect_prompts_only_sessions_in_topic(tmp_path, monkeypatch):
+    sessions = [
+        _FakeSession({"COR-144": object()}, ["A1", "A2"]),
+        _FakeSession({"COR-119": object()}, ["B1"]),         # different topic
+        _FakeSession({"COR-144": object()}, ["C1"]),
+    ]
+    rollup = _FakeRollup(["COR-144", "COR-119"], sessions)
+    lab = labeler.Labeler(rollup, cache_path=tmp_path / "c.json")
+    out = lab._collect_prompts("COR-144", sessions)
+    assert "A1" in out and "A2" in out and "C1" in out
+    assert "B1" not in out
+
+
+def test_labeler_start_stop_lifecycle(tmp_path, monkeypatch):
+    rollup = _FakeRollup([], [])
+    monkeypatch.setattr(labeler, "summarize_topic", lambda *a, **kw: None)
+    lab = labeler.Labeler(rollup, cache_path=tmp_path / "c.json", interval_sec=0.05)
+    lab.start()
+    time.sleep(0.15)  # let it run a couple of ticks
+    lab.stop()
+    assert lab._thread is None

@@ -17,12 +17,20 @@ background thread lives elsewhere.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import pathlib
 import re
 import subprocess
+import threading
 import time
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Iterable
+
+if TYPE_CHECKING:
+    from daemon.rollup import Rollup, SessionInfo
+
+logger = logging.getLogger(__name__)
 
 # Same shape as topics.TICKET_RE but anchored to the whole string — we use
 # this on a topic_id, not free text.
@@ -167,3 +175,120 @@ def summarize_topic(topic_id: str, prompts_sample: list[str]) -> str | None:
         if title:
             return title
     return fetch_claude_summary(topic_id, prompts_sample)
+
+
+# --- background labeler ---------------------------------------------------
+
+
+DEFAULT_INTERVAL_SEC = 600.0   # 10 min between ticks
+DEFAULT_MAX_PER_TICK = 25      # cap subprocess load per tick
+
+
+class Labeler:
+    """Background thread that resolves topic summaries off the request path.
+
+    The watcher thread feeds the rollup; this thread reads the rollup,
+    calls `summarize_topic` for any topic missing or past TTL, and writes
+    results to the on-disk cache. Route handlers read summaries via the
+    non-blocking `get_summary` accessor (briefly takes a Lock).
+    """
+
+    def __init__(
+        self,
+        rollup: "Rollup",
+        *,
+        cache_path: pathlib.Path = DEFAULT_CACHE_PATH,
+        interval_sec: float = DEFAULT_INTERVAL_SEC,
+        max_per_tick: int = DEFAULT_MAX_PER_TICK,
+    ) -> None:
+        self.rollup = rollup
+        self.cache_path = cache_path
+        self.interval_sec = interval_sec
+        self.max_per_tick = max_per_tick
+        self._cache_lock = threading.Lock()
+        self._cache: dict[str, CachedSummary] = load_cache(cache_path)
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    # --- read side (called by HTTP handlers) ------------------------------
+
+    def get_summary(self, topic_id: str) -> str | None:
+        with self._cache_lock:
+            entry = self._cache.get(topic_id)
+            return entry.summary if entry else None
+
+    # --- lifecycle --------------------------------------------------------
+
+    def start(self) -> None:
+        if self._thread is not None:
+            return
+        self._thread = threading.Thread(
+            target=self._run, name="labeler", daemon=True,
+        )
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=10.0)
+            self._thread = None
+
+    # --- internals --------------------------------------------------------
+
+    def _run(self) -> None:
+        # Initial tick happens immediately on start so summaries appear
+        # without waiting interval_sec for the first one.
+        while not self._stop.is_set():
+            try:
+                self.tick()
+            except Exception:
+                logger.exception("labeler tick failed")
+            self._stop.wait(self.interval_sec)
+
+    def tick(self) -> int:
+        """Run one labeling pass; return number of topics labeled this tick.
+        Public so tests can drive it without spinning a thread."""
+        topics = [t.topic_id for t in self.rollup.snapshot_topics()]
+        pending: list[str] = []
+        with self._cache_lock:
+            for tid in topics:
+                entry = self._cache.get(tid)
+                if entry is None or not is_fresh(entry):
+                    pending.append(tid)
+        pending = pending[: self.max_per_tick]
+        if not pending:
+            return 0
+
+        sessions = self.rollup.snapshot_sessions()
+        labeled = 0
+        for tid in pending:
+            if self._stop.is_set():
+                break
+            prompts = self._collect_prompts(tid, sessions)
+            summary = summarize_topic(tid, prompts)
+            if summary:
+                with self._cache_lock:
+                    self._cache[tid] = CachedSummary(
+                        summary=summary, fetched_at=time.time(),
+                    )
+                self._save()
+                labeled += 1
+        return labeled
+
+    def _save(self) -> None:
+        with self._cache_lock:
+            cache_copy = dict(self._cache)
+        save_cache(cache_copy, self.cache_path)
+
+    def _collect_prompts(
+        self, topic_id: str, sessions: "Iterable[SessionInfo]",
+    ) -> list[str]:
+        """Up to PROMPTS_SAMPLE_CAP early prompts from sessions touching
+        this topic. Used as the LLM context when ticket lookup falls back."""
+        out: list[str] = []
+        for s in sessions:
+            if topic_id in s.segments and s.early_user_prompts:
+                out.extend(s.early_user_prompts[:2])
+                if len(out) >= PROMPTS_SAMPLE_CAP:
+                    break
+        return out
