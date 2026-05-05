@@ -1,0 +1,28 @@
+ui/src/components/QuotaBar.test.tsx
+  d65ea34b6f61fd51 13-23,29
+ui/src/components/QuotaBar.tsx
+  d65ea34b6f61fd51 27-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "9efa37a7bf8428c35efaabf10d376433247c6f1e",
+  "prompts": {
+    "d65ea34b6f61fd51": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9a7f6113-acbc-4a6a-9c47-d596851dfae0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Richard Pon",
+      "messages": [],
+      "total_additions": 317,
+      "total_deletions": 326,
+      "accepted_lines": 431,
+      "overriden_lines": 0,
+      "custom_attributes": {
+        "runtime": "local"
+      }
+    }
+  }
+}
