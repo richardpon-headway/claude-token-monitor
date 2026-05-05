@@ -10,28 +10,23 @@ describe("QuotaBar", () => {
     expect(screen.getByText(/\(50%\)/)).toBeInTheDocument();
   });
 
-  it("uses emerald color under 80%", () => {
-    const { container } = render(<QuotaBar todayOutput={100_000} />); // ~43%
-    expect(container.querySelector(".bg-emerald-500")).toBeTruthy();
-    expect(container.querySelector(".bg-amber-400")).toBeFalsy();
-    expect(container.querySelector(".bg-red-500")).toBeFalsy();
-  });
-
-  it("uses amber color between 80% and 100%", () => {
-    const { container } = render(<QuotaBar todayOutput={Math.round(FLOOR * 0.9)} />);
-    expect(container.querySelector(".bg-amber-400")).toBeTruthy();
-    expect(container.querySelector(".bg-emerald-500")).toBeFalsy();
-  });
-
-  it("uses red color when over 100%", () => {
-    const { container } = render(<QuotaBar todayOutput={Math.round(FLOOR * 1.5)} />);
-    expect(container.querySelector(".bg-red-500")).toBeTruthy();
+  it("always uses a single emerald color regardless of percentage", () => {
+    for (const pct of [0.43, 0.9, 1.5, 5.0]) {
+      const { container, unmount } = render(
+        <QuotaBar todayOutput={Math.round(FLOOR * pct)} />,
+      );
+      expect(container.querySelector(".bg-emerald-500")).toBeTruthy();
+      expect(container.querySelector(".bg-amber-400")).toBeFalsy();
+      expect(container.querySelector(".bg-red-500")).toBeFalsy();
+      expect(container.querySelector(".text-emerald-400")).toBeTruthy();
+      unmount();
+    }
   });
 
   it("auto-scales past 100%: bar width = pct / scaleMax", () => {
     // 105% -> scaleMax=200 -> bar at 52.5%
     const { container } = render(<QuotaBar todayOutput={Math.round(FLOOR * 1.05)} />);
-    const bar = container.querySelector(".bg-red-500") as HTMLElement;
+    const bar = container.querySelector(".bg-emerald-500") as HTMLElement;
     expect(parseFloat(bar.style.width)).toBeCloseTo(52.5, 0);
   });
 
