@@ -5,11 +5,11 @@ import type { ProjectRow, SessionRow, TopicRow } from "../types";
 
 const topicRows: TopicRow[] = [
   { topic_id: "COR-100", label: "COR-100", sessions: 2, output: 100,
-    input: 10, messages: 5, last_at: null },
+    input: 10, messages: 5, last_at: null, summary: null },
   { topic_id: "COR-200", label: "COR-200", sessions: 1, output: 500,
-    input: 50, messages: 20, last_at: null },
+    input: 50, messages: 20, last_at: null, summary: null },
   { topic_id: "COR-300", label: "COR-300", sessions: 3, output: 250,
-    input: 25, messages: 10, last_at: null },
+    input: 25, messages: 10, last_at: null, summary: null },
 ];
 
 const projectRows: ProjectRow[] = [
@@ -85,6 +85,26 @@ describe("UsageList", () => {
     render(<UsageList by="session" rows={[session]} />);
     expect(screen.getByText("COR-144")).toBeInTheDocument();
     expect(screen.getByText(/\+ COR-119/)).toBeInTheDocument();
+  });
+
+  it("renders the topic summary inline when present", () => {
+    const rows: TopicRow[] = [
+      { topic_id: "COR-144", label: "COR-144", sessions: 1, output: 100,
+        input: 0, messages: 1, last_at: null,
+        summary: "IA call webhook source of truth" },
+    ];
+    render(<UsageList by="topic" rows={rows} />);
+    expect(screen.getByText(/IA call webhook source of truth/)).toBeInTheDocument();
+  });
+
+  it("renders only the topic id when summary is null", () => {
+    const rows: TopicRow[] = [
+      { topic_id: "COR-144", label: "COR-144", sessions: 1, output: 100,
+        input: 0, messages: 1, last_at: null, summary: null },
+    ];
+    render(<UsageList by="topic" rows={rows} />);
+    expect(screen.getByText("COR-144")).toBeInTheDocument();
+    expect(screen.queryByText(/·/)).not.toBeInTheDocument();
   });
 
   it("renders +N more suffix when session has 3+ segments", () => {

@@ -17,6 +17,7 @@ from typing import Any
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import StreamingResponse
 
+from daemon.labeler import Labeler
 from daemon.rollup import Rollup
 from daemon.topics import topic_display_label
 
@@ -78,7 +79,11 @@ class Broadcaster:
         self._subscribers.discard(q)
 
 
-def make_router(rollup: Rollup, broadcaster: Broadcaster) -> APIRouter:
+def make_router(
+    rollup: Rollup,
+    broadcaster: Broadcaster,
+    labeler: Labeler | None = None,
+) -> APIRouter:
     router = APIRouter(prefix="/api")
 
     @router.get("/usage/windows")
@@ -89,7 +94,11 @@ def make_router(rollup: Rollup, broadcaster: Broadcaster) -> APIRouter:
     def groups(by: str = Query("topic", pattern="^(topic|session|project)$")) -> dict:
         if by == "topic":
             rows = [
-                {**_jsonable(t), "label": topic_display_label(t.topic_id)}
+                {
+                    **_jsonable(t),
+                    "label": topic_display_label(t.topic_id),
+                    "summary": labeler.get_summary(t.topic_id) if labeler else None,
+                }
                 for t in rollup.snapshot_topics()
             ]
         elif by == "project":
