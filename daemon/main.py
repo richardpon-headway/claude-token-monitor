@@ -20,6 +20,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from daemon.labeler import Labeler
 from daemon.routes import Broadcaster, make_router
 from daemon.rollup import Rollup
 from daemon.watcher import Watcher, initial_scan
@@ -63,18 +64,21 @@ def build_app() -> tuple[FastAPI, Watcher]:
 
     broadcaster = Broadcaster()
     watcher = Watcher(rollup, PROJECTS_DIR, on_change=broadcaster.notify)
+    labeler = Labeler(rollup)
 
     @contextlib.asynccontextmanager
     async def lifespan(_app: FastAPI):
         watcher.start()
-        print("watcher started", file=sys.stderr)
+        labeler.start()
+        print("watcher + labeler started", file=sys.stderr)
         try:
             yield
         finally:
+            labeler.stop()
             watcher.stop()
 
     app = FastAPI(title="claude-token-monitor", lifespan=lifespan)
-    app.include_router(make_router(rollup, broadcaster))
+    app.include_router(make_router(rollup, broadcaster, labeler))
 
     if STATIC_DIR.exists():
         # Built UI bundle present — serve it at /. Register AFTER /api/* so
