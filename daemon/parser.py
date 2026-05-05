@@ -40,9 +40,6 @@ class ParseResult:
     started_at: datetime.datetime | None = None
     last_at: datetime.datetime | None = None
     bytes_read: int = 0  # absolute offset; rollup persists this
-    # Final value of "most recent user-prompt ticket mention" after this
-    # parse — rollup persists per session and feeds it to the next call.
-    current_prompt_ticket: str | None = None
 
 
 def _project_for(path: pathlib.Path, projects_dir: pathlib.Path) -> str:
@@ -82,25 +79,18 @@ def parse_file(
     projects_dir: pathlib.Path,
     seen_message_ids: set[str],
     start_offset: int = 0,
-    current_prompt_ticket: str | None = None,
 ) -> ParseResult:
     """Parse a session JSONL file from start_offset to its last complete line.
 
     seen_message_ids is mutated in place; the rollup owns it and persists it
     across calls so duplicate message.ids written in separate flushes still
     dedup correctly.
-
-    current_prompt_ticket is the running "most recent user-prompt ticket
-    mention" carried in from the rollup; it advances as we walk user prompts
-    and is returned in ParseResult.current_prompt_ticket so the rollup can
-    persist it across incremental parses of the same session file.
     """
-    from daemon.topics import assign_topic_for_record, extract_tickets
+    from daemon.topics import assign_topic_for_record
 
     session_id = path.stem
     project = _project_for(path, projects_dir)
     result = ParseResult(session_id=session_id, project=project, bytes_read=start_offset)
-    result.current_prompt_ticket = current_prompt_ticket
 
     try:
         with path.open("rb") as f:
@@ -131,15 +121,8 @@ def parse_file(
                 result.last_at = dt_utc
 
         text = _extract_user_text(rec)
-        if text:
-            if len(result.early_user_prompts) < EARLY_PROMPT_CAP:
-                result.early_user_prompts.append(text[:PROMPT_CHAR_CAP])
-            # Advance the running prompt-ticket state. If the user mentions
-            # multiple tickets in one prompt, the LAST one wins (covers
-            # "stop COR-144, switch to COR-119" semantics).
-            tickets = extract_tickets(text)
-            if tickets:
-                result.current_prompt_ticket = tickets[-1]
+        if text and len(result.early_user_prompts) < EARLY_PROMPT_CAP:
+            result.early_user_prompts.append(text[:PROMPT_CHAR_CAP])
 
         msg = rec.get("message") or {}
         usage = msg.get("usage") or {}
@@ -160,9 +143,7 @@ def parse_file(
             continue
 
         git_branch = rec.get("gitBranch") or None
-        topic_id = assign_topic_for_record(
-            git_branch, result.current_prompt_ticket, project,
-        )
+        topic_id = assign_topic_for_record(git_branch, project)
         result.records.append(UsageRecord(
             session_id=session_id,
             project=project,

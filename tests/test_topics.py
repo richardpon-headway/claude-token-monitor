@@ -81,50 +81,48 @@ def test_topic_display_label():
     assert topic_display_label("unclassified:my-proj") == "my-proj (no ticket)"
 
 
+def test_topic_display_label_branch_scoped():
+    """Branch-scoped unclassified buckets show the branch in the label."""
+    assert (
+        topic_display_label("unclassified:-Users-rpon-development-headway#main")
+        == "headway / main (no ticket)"
+    )
+
+
 # --- assign_topic_for_record (per-record resolver) ---------------------
 
-def test_per_record_branch_wins_over_prompt_and_folder():
+def test_per_record_branch_wins_over_folder():
     topic = assign_topic_for_record(
         git_branch="zendesk_trigger_setup_COR-144",
-        current_prompt_ticket="COR-119",
         project="headway-worktree-COR-200-foo",
     )
     assert topic == "COR-144"
 
 
-def test_per_record_falls_back_to_prompt_ticket_on_main():
-    topic = assign_topic_for_record(
-        git_branch="main",
-        current_prompt_ticket="COR-119",
-        project="headway",
-    )
-    assert topic == "COR-119"
-
-
 def test_per_record_falls_back_to_folder():
     topic = assign_topic_for_record(
         git_branch=None,
-        current_prompt_ticket=None,
         project="headway-worktree-COR-144-foo",
     )
     assert topic == "COR-144"
 
 
-def test_per_record_unclassified_when_nothing_matches():
-    topic = assign_topic_for_record(
-        git_branch="main",
-        current_prompt_ticket=None,
-        project="headway",
-    )
+def test_per_record_unclassified_branch_scoped_when_branch_known():
+    """No ticket anywhere but we know the branch -> bucket by branch."""
+    topic = assign_topic_for_record(git_branch="main", project="headway")
+    assert topic == "unclassified:headway#main"
+
+
+def test_per_record_unclassified_no_branch_when_branch_missing():
+    topic = assign_topic_for_record(git_branch=None, project="headway")
     assert topic == "unclassified:headway"
 
 
-def test_per_record_branch_with_no_ticket_skips_to_next_priority():
-    """A non-empty branch without a ticket shouldn't return early — fall
-    through to the next priority level."""
+def test_per_record_no_prompt_history_fallback():
+    """We dropped the prompt-history fallback: a branch without a ticket
+    no longer leaks attribution from prior prompts. It buckets by branch."""
     topic = assign_topic_for_record(
         git_branch="my-feature-branch",
-        current_prompt_ticket="COR-119",
         project="headway",
     )
-    assert topic == "COR-119"
+    assert topic == "unclassified:headway#my-feature-branch"
