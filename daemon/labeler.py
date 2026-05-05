@@ -17,8 +17,12 @@ background thread lives elsewhere.
 from __future__ import annotations
 
 import json
+import os
+import pathlib
 import re
 import subprocess
+import time
+from dataclasses import dataclass
 
 # Same shape as topics.TICKET_RE but anchored to the whole string — we use
 # this on a topic_id, not free text.
@@ -27,6 +31,66 @@ TICKET_KEY_RE = re.compile(r"^[A-Z]{2,5}-\d+$")
 ACLI_TIMEOUT_SEC = 8.0
 CLAUDE_TIMEOUT_SEC = 30.0
 PROMPTS_SAMPLE_CAP = 20
+
+CACHE_TTL_SEC = 7 * 86400  # refresh entries older than 7 days
+DEFAULT_CACHE_PATH = (
+    pathlib.Path.home() / ".cache" / "claude-token-monitor" / "topic-summaries.json"
+)
+
+
+@dataclass
+class CachedSummary:
+    summary: str
+    fetched_at: float  # unix epoch seconds
+
+
+def is_fresh(cached: CachedSummary, *, now: float | None = None) -> bool:
+    """True if `cached` is still within the TTL window."""
+    n = now if now is not None else time.time()
+    return (n - cached.fetched_at) < CACHE_TTL_SEC
+
+
+def load_cache(path: pathlib.Path = DEFAULT_CACHE_PATH) -> dict[str, CachedSummary]:
+    """Load the on-disk cache. Returns {} if the file is missing or unreadable."""
+    try:
+        raw = path.read_text()
+    except (FileNotFoundError, OSError):
+        return {}
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    out: dict[str, CachedSummary] = {}
+    for k, v in data.items():
+        if not isinstance(v, dict):
+            continue
+        s = v.get("summary")
+        ts = v.get("fetched_at")
+        if isinstance(s, str) and isinstance(ts, (int, float)):
+            out[k] = CachedSummary(summary=s, fetched_at=float(ts))
+    return out
+
+
+def save_cache(
+    cache: dict[str, CachedSummary],
+    path: pathlib.Path = DEFAULT_CACHE_PATH,
+) -> None:
+    """Atomic write: dump to a sibling tempfile, then os.replace.
+
+    Avoids leaving a half-written cache on crash. The labeler tick may
+    write hundreds of entries, so a partial write would corrupt the
+    next startup's load.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        k: {"summary": v.summary, "fetched_at": v.fetched_at}
+        for k, v in cache.items()
+    }
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2))
+    os.replace(tmp, path)
 
 
 def is_ticket_topic(topic_id: str) -> bool:

@@ -138,3 +138,71 @@ def test_summarize_topic_non_ticket_skips_acli(monkeypatch):
     out = labeler.summarize_topic("unclassified:headway", ["look around"])
     assert out == "exploration in the headway repo"
     assert [r[0] for r in runs] == ["claude"]
+
+
+# --- cache ----------------------------------------------------------------
+
+def test_cache_round_trip(tmp_path):
+    cache = {
+        "COR-144": labeler.CachedSummary(summary="webhook rewrite", fetched_at=1.0),
+        "GAD-7": labeler.CachedSummary(summary="anxiety scale", fetched_at=2.0),
+    }
+    p = tmp_path / "cache.json"
+    labeler.save_cache(cache, p)
+    loaded = labeler.load_cache(p)
+    assert loaded == cache
+
+
+def test_cache_load_missing_file_returns_empty(tmp_path):
+    assert labeler.load_cache(tmp_path / "nope.json") == {}
+
+
+def test_cache_load_corrupt_file_returns_empty(tmp_path):
+    p = tmp_path / "cache.json"
+    p.write_text("{ this is not json")
+    assert labeler.load_cache(p) == {}
+
+
+def test_cache_load_skips_malformed_entries(tmp_path):
+    """One bad entry shouldn't poison the rest — drop it and keep going."""
+    import json
+    p = tmp_path / "cache.json"
+    p.write_text(json.dumps({
+        "COR-144": {"summary": "good", "fetched_at": 5.0},
+        "GAD-7": "not a dict",
+        "DT-1890": {"summary": 999, "fetched_at": 5.0},  # summary not str
+        "EL-635": {"summary": "ok", "fetched_at": "not a number"},
+    }))
+    loaded = labeler.load_cache(p)
+    assert list(loaded.keys()) == ["COR-144"]
+    assert loaded["COR-144"].summary == "good"
+
+
+def test_is_fresh_within_ttl():
+    cached = labeler.CachedSummary(summary="x", fetched_at=1000.0)
+    # 6 days later — still fresh
+    assert labeler.is_fresh(cached, now=1000.0 + 6 * 86400) is True
+
+
+def test_is_fresh_past_ttl():
+    cached = labeler.CachedSummary(summary="x", fetched_at=1000.0)
+    # 8 days later — stale
+    assert labeler.is_fresh(cached, now=1000.0 + 8 * 86400) is False
+
+
+def test_save_cache_writes_atomically(tmp_path):
+    """save_cache should write to a tempfile then rename, not leave a
+    partial file on the destination path."""
+    cache = {"COR-144": labeler.CachedSummary(summary="x", fetched_at=1.0)}
+    p = tmp_path / "cache.json"
+    labeler.save_cache(cache, p)
+    # No leftover .tmp file
+    assert not (tmp_path / "cache.json.tmp").exists()
+    # Final file is well-formed
+    assert "COR-144" in labeler.load_cache(p)
+
+
+def test_save_cache_creates_parent_dir(tmp_path):
+    p = tmp_path / "nested" / "deep" / "cache.json"
+    labeler.save_cache({}, p)
+    assert p.exists()
