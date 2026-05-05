@@ -70,7 +70,9 @@ export default function App() {
           <Tile
             label="today (local)"
             b={windows.today_local}
-            quotaPerBucket={WORKDAY_FLOOR / 24}
+            // No quota lines: bars are hourly but the floor is a daily
+            // budget — comparing a single hour to a day is a category
+            // mismatch. The QuotaBar above already shows today vs floor.
           />
           <Tile
             label="last 7d (local)"
