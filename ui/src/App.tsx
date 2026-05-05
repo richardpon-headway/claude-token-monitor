@@ -60,8 +60,20 @@ export default function App() {
       </header>
 
       {windows && (
-        <div className="mb-6 max-w-xl">
-          <QuotaBar todayOutput={windows.today_local.output} />
+        <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div className="max-w-xl flex-1 min-w-[16rem]">
+            <QuotaBar
+              todayOutput={
+                tz === "utc"
+                  ? windows.today_utc.output
+                  : windows.today_local.output
+              }
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <RangeSwitcher value={range} onChange={setRange} />
+            <TimezoneToggle value={tz} onChange={setTz} />
+          </div>
         </div>
       )}
 
@@ -85,14 +97,10 @@ export default function App() {
         </section>
       )}
 
-      <section className="mb-3 flex items-center justify-between">
+      <section className="mb-3">
         <h2 className="text-sm uppercase tracking-wide text-zinc-500">
           activity
         </h2>
-        <div className="flex items-center gap-2">
-          <RangeSwitcher value={range} onChange={setRange} />
-          <TimezoneToggle value={tz} onChange={setTz} />
-        </div>
       </section>
 
       {ts && (
