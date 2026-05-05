@@ -55,7 +55,7 @@ export interface TopicRow {
 }
 
 export type GroupBy = "topic" | "session" | "project";
-export type RangeKey = "1h" | "24h" | "7d" | "30d";
+export type RangeKey = "1h" | "4h" | "1d" | "7d" | "30d";
 
 export type GroupRow = TopicRow | SessionRow | ProjectRow;
 

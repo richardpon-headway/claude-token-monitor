@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import {
-  Area,
-  AreaChart,
+  Bar,
+  BarChart,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -13,6 +13,13 @@ import type { RangeKey, TimeseriesResponse } from "../types";
 const WORKDAY_FLOOR = 233_333;
 const MINUTES_PER_DAY = 24 * 60;
 const PER_MIN_FLOOR = WORKDAY_FLOOR / MINUTES_PER_DAY;
+
+/** Number of minute buckets to render for each minute-granular range. */
+const MINUTE_BUCKET_COUNT: Record<string, number> = {
+  "1h": 60,
+  "4h": 240,
+  "1d": MINUTES_PER_DAY,
+};
 
 /** Pads the buckets so missing time slices render as zeros. Daemon only
  *  returns slices with activity; UI fills the gaps so the chart has a
@@ -27,7 +34,7 @@ function padBuckets(
   const out: { t: string; output: number; ts: number }[] = [];
 
   if (granularity === "minute") {
-    const total = range === "1h" ? 60 : MINUTES_PER_DAY;
+    const total = MINUTE_BUCKET_COUNT[range] ?? 60;
     // bucket key matches what the rollup emits: minute_iso() with seconds=0
     const start = new Date(now);
     start.setSeconds(0, 0);
@@ -112,22 +119,20 @@ export function LiveChart({
     <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
       <div className="h-48">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={padded} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
-            <defs>
-              <linearGradient id="outputFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#10b981" stopOpacity={0.4} />
-                <stop offset="100%" stopColor="#10b981" stopOpacity={0.05} />
-              </linearGradient>
-            </defs>
+          <BarChart
+            data={padded}
+            margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
+            barCategoryGap={1}
+          >
             <XAxis
               dataKey="ts"
-              type="number"
-              domain={["dataMin", "dataMax"]}
-              tickFormatter={tickFormatter}
+              type="category"
+              tickFormatter={(ts) => tickFormatter(Number(ts))}
               tick={{ fill: "#71717a", fontSize: 11 }}
               tickLine={{ stroke: "#3f3f46" }}
               axisLine={{ stroke: "#3f3f46" }}
               minTickGap={28}
+              interval="preserveStartEnd"
             />
             <YAxis
               tick={{ fill: "#71717a", fontSize: 11 }}
@@ -137,6 +142,7 @@ export function LiveChart({
               width={48}
             />
             <Tooltip
+              cursor={{ fill: "#27272a", opacity: 0.5 }}
               contentStyle={{
                 background: "#18181b",
                 border: "1px solid #3f3f46",
@@ -144,11 +150,10 @@ export function LiveChart({
                 color: "#e4e4e7",
                 fontSize: 12,
               }}
-              labelFormatter={(ts: number) =>
-                isMinute
-                  ? new Date(ts).toLocaleString()
-                  : new Date(ts).toLocaleDateString()
-              }
+              labelFormatter={(ts: number | string) => {
+                const d = new Date(Number(ts));
+                return isMinute ? d.toLocaleString() : d.toLocaleDateString();
+              }}
               formatter={(v: number) => [v.toLocaleString(), "output tokens"]}
             />
             <ReferenceLine
@@ -163,15 +168,12 @@ export function LiveChart({
               strokeDasharray="3 3"
               label={{ value: "2× floor", fill: "#71717a", fontSize: 10, position: "right" }}
             />
-            <Area
-              type="monotone"
+            <Bar
               dataKey="output"
-              stroke="#34d399"
-              strokeWidth={1.5}
-              fill="url(#outputFill)"
+              fill="#10b981"
               isAnimationActive={false}
             />
-          </AreaChart>
+          </BarChart>
         </ResponsiveContainer>
       </div>
     </div>

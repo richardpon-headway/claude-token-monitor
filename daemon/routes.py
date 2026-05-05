@@ -110,13 +110,11 @@ def make_router(
 
     @router.get("/usage/timeseries")
     def timeseries(
-        window: str = Query("1h", alias="range", pattern="^(1h|24h|7d|30d)$"),
+        window: str = Query("1h", alias="range", pattern="^(1h|4h|1d|7d|30d)$"),
     ) -> dict:
-        if window == "1h":
-            data = rollup.snapshot_timeseries(60)
-            granularity = "minute"
-        elif window == "24h":
-            data = rollup.snapshot_timeseries(1440)
+        minute_windows = {"1h": 60, "4h": 240, "1d": 1440}
+        if window in minute_windows:
+            data = rollup.snapshot_timeseries(minute_windows[window])
             granularity = "minute"
         else:
             days = 7 if window == "7d" else 30
