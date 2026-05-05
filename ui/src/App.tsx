@@ -206,7 +206,10 @@ function Tile({
           className="absolute inset-1"
         />
       )}
-      <div className="relative">
+      {/* Text overlays the sparkline (which is absolute-positioned
+          behind). pointer-events:none lets hovers pass through to the
+          bars; nothing in this stack is interactive anyway. */}
+      <div className="relative pointer-events-none">
         <div className="text-xs uppercase tracking-wide text-zinc-500">
           {label}
         </div>
