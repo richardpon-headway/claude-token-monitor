@@ -1,0 +1,30 @@
+ui/src/types.ts
+  d65ea34b6f61fd51 54
+ui/src/components/UsageList.tsx
+  d65ea34b6f61fd51 44-55,96
+ui/src/components/UsageList.test.tsx
+  d65ea34b6f61fd51 8,10,12,90-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "ac5770af7845a02e4ddcf602b79275f02e853e64",
+  "prompts": {
+    "d65ea34b6f61fd51": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9a7f6113-acbc-4a6a-9c47-d596851dfae0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Richard Pon",
+      "messages": [],
+      "total_additions": 589,
+      "total_deletions": 524,
+      "accepted_lines": 1269,
+      "overriden_lines": 0,
+      "custom_attributes": {
+        "runtime": "local"
+      }
+    }
+  }
+}
