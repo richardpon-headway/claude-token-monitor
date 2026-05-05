@@ -18,6 +18,7 @@ def _record(
     cache_creation: int = 0,
     cache_read: int = 0,
     text: str | None = None,
+    git_branch: str | None = None,
 ) -> dict:
     msg: dict = {"role": role}
     if msg_id is not None:
@@ -34,6 +35,8 @@ def _record(
     rec: dict = {"message": msg}
     if timestamp is not None:
         rec["timestamp"] = timestamp
+    if git_branch is not None:
+        rec["gitBranch"] = git_branch
     return rec
 
 

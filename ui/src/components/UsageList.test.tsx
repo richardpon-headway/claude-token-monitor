@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { UsageList } from "./UsageList";
-import type { ProjectRow, TopicRow } from "../types";
+import type { ProjectRow, SessionRow, TopicRow } from "../types";
 
 const topicRows: TopicRow[] = [
   { topic_id: "COR-100", label: "COR-100", sessions: 2, output: 100,
@@ -56,5 +56,51 @@ describe("UsageList", () => {
   it("shows the empty state when rows is empty", () => {
     render(<UsageList by="topic" rows={[]} />);
     expect(screen.getByText("no data yet")).toBeInTheDocument();
+  });
+
+  it("renders dominant topic only when session has a single segment", () => {
+    const session: SessionRow = {
+      session_id: "abc-1234", project: "headway",
+      output: 100, input: 10, messages: 3,
+      started_at: null, last_at: null, early_user_prompts: [],
+      topic_id: "COR-144",
+      segments: { "COR-144": { output: 100, input: 10, messages: 3, last_at: null } },
+    };
+    render(<UsageList by="session" rows={[session]} />);
+    expect(screen.getByText("COR-144")).toBeInTheDocument();
+    expect(screen.queryByText(/\+/)).not.toBeInTheDocument();
+  });
+
+  it("renders dominant + next when session has multiple segments", () => {
+    const session: SessionRow = {
+      session_id: "abc-1234", project: "headway",
+      output: 200, input: 20, messages: 6,
+      started_at: null, last_at: null, early_user_prompts: [],
+      topic_id: "COR-144",
+      segments: {
+        "COR-144": { output: 130, input: 13, messages: 4, last_at: null },
+        "COR-119": { output: 70, input: 7, messages: 2, last_at: null },
+      },
+    };
+    render(<UsageList by="session" rows={[session]} />);
+    expect(screen.getByText("COR-144")).toBeInTheDocument();
+    expect(screen.getByText(/\+ COR-119/)).toBeInTheDocument();
+  });
+
+  it("renders +N more suffix when session has 3+ segments", () => {
+    const session: SessionRow = {
+      session_id: "abc-1234", project: "headway",
+      output: 300, input: 30, messages: 9,
+      started_at: null, last_at: null, early_user_prompts: [],
+      topic_id: "COR-144",
+      segments: {
+        "COR-144": { output: 150, input: 15, messages: 4, last_at: null },
+        "COR-119": { output: 100, input: 10, messages: 3, last_at: null },
+        "COR-200": { output: 50,  input: 5,  messages: 2, last_at: null },
+      },
+    };
+    render(<UsageList by="session" rows={[session]} />);
+    expect(screen.getByText(/\+ COR-119/)).toBeInTheDocument();
+    expect(screen.getByText(/\(\+1\)/)).toBeInTheDocument();
   });
 });

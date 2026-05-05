@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from daemon.topics import assign_topic, extract_tickets, topic_display_label
+from daemon.topics import (
+    assign_topic,
+    assign_topic_for_record,
+    extract_tickets,
+    topic_display_label,
+)
 
 
 def test_extract_tickets_finds_jira_ids():
@@ -59,3 +64,52 @@ def test_assign_topic_only_uses_first_5_prompts():
 def test_topic_display_label():
     assert topic_display_label("COR-144") == "COR-144"
     assert topic_display_label("unclassified:my-proj") == "my-proj (no ticket)"
+
+
+# --- assign_topic_for_record (per-record resolver) ---------------------
+
+def test_per_record_branch_wins_over_prompt_and_folder():
+    topic = assign_topic_for_record(
+        git_branch="zendesk_trigger_setup_COR-144",
+        current_prompt_ticket="COR-119",
+        project="headway-worktree-COR-200-foo",
+    )
+    assert topic == "COR-144"
+
+
+def test_per_record_falls_back_to_prompt_ticket_on_main():
+    topic = assign_topic_for_record(
+        git_branch="main",
+        current_prompt_ticket="COR-119",
+        project="headway",
+    )
+    assert topic == "COR-119"
+
+
+def test_per_record_falls_back_to_folder():
+    topic = assign_topic_for_record(
+        git_branch=None,
+        current_prompt_ticket=None,
+        project="headway-worktree-COR-144-foo",
+    )
+    assert topic == "COR-144"
+
+
+def test_per_record_unclassified_when_nothing_matches():
+    topic = assign_topic_for_record(
+        git_branch="main",
+        current_prompt_ticket=None,
+        project="headway",
+    )
+    assert topic == "unclassified:headway"
+
+
+def test_per_record_branch_with_no_ticket_skips_to_next_priority():
+    """A non-empty branch without a ticket shouldn't return early — fall
+    through to the next priority level."""
+    topic = assign_topic_for_record(
+        git_branch="my-feature-branch",
+        current_prompt_ticket="COR-119",
+        project="headway",
+    )
+    assert topic == "COR-119"

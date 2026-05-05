@@ -37,6 +37,38 @@ const isSessionRow = (r: GroupRow): r is SessionRow =>
 const isProjectRow = (r: GroupRow): r is ProjectRow =>
   "project" in r && !("session_id" in r) && !("topic_id" in r);
 
+function shortTopic(t: string): string {
+  return t.startsWith("unclassified:") ? "—" : t;
+}
+
+/** Render a session row's topic column. Single-topic sessions show just
+ *  the topic. Multi-topic sessions show the dominant + "+ next + N more"
+ *  with a tooltip listing the full breakdown. */
+function renderSessionTopic(r: SessionRow): React.ReactNode {
+  const dominant = r.topic_id;
+  if (!dominant) return <span className="text-zinc-500 text-xs">—</span>;
+  const segs = r.segments || {};
+  const others = Object.entries(segs)
+    .filter(([k]) => k !== dominant)
+    .sort((a, b) => b[1].output - a[1].output);
+  const dominantText = shortTopic(dominant);
+  if (others.length === 0) {
+    return <span className="text-xs">{dominantText}</span>;
+  }
+  const tooltip = Object.entries(segs)
+    .sort((a, b) => b[1].output - a[1].output)
+    .map(([k, s]) => `${shortTopic(k)}: ${s.output.toLocaleString()}`)
+    .join("\n");
+  const next = shortTopic(others[0][0]);
+  const more = others.length > 1 ? ` (+${others.length - 1})` : "";
+  return (
+    <span className="text-xs" title={tooltip}>
+      {dominantText}
+      <span className="text-zinc-500"> + {next}{more}</span>
+    </span>
+  );
+}
+
 interface ColumnDef {
   key: string;
   label: string;
@@ -125,15 +157,7 @@ function sessionColumns(): ColumnDef[] {
     },
     {
       key: "topic_id", label: "Topic", align: "left",
-      render: (r) => isSessionRow(r) ? (
-        <span className="text-xs">
-          {r.topic_id?.startsWith("unclassified:") ? (
-            <span className="text-zinc-500">—</span>
-          ) : (
-            r.topic_id ?? "—"
-          )}
-        </span>
-      ) : "",
+      render: (r) => isSessionRow(r) ? renderSessionTopic(r) : "",
       sortVal: (r) => isSessionRow(r) ? (r.topic_id ?? "") : "",
     },
     {
