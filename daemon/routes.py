@@ -91,22 +91,25 @@ def make_router(
         return _jsonable(rollup.snapshot_windows())
 
     @router.get("/usage/groups")
-    def groups(by: str = Query("topic", pattern="^(topic|session|project)$")) -> dict:
+    def groups(
+        by: str = Query("topic", pattern="^(topic|session|project)$"),
+        window: str = Query("1h", alias="range", pattern="^(1h|4h|1d|7d|30d)$"),
+    ) -> dict:
+        # Range maps to a sliding window in minutes; rollup filters its
+        # raw record list to that window before grouping.
+        range_minutes = {
+            "1h": 60, "4h": 240, "1d": 1440,
+            "7d": 7 * 1440, "30d": 30 * 1440,
+        }[window]
+        rows = [_jsonable(r) for r in rollup.windowed_groups(by, range_minutes)]
         if by == "topic":
-            rows = [
-                {
-                    **_jsonable(t),
-                    "label": topic_display_label(t.topic_id),
-                    "summary": labeler.get_summary(t.topic_id) if labeler else None,
-                }
-                for t in rollup.snapshot_topics()
-            ]
-        elif by == "project":
-            rows = [_jsonable(p) for p in rollup.snapshot_projects()]
-        else:
-            rows = [_jsonable(s) for s in rollup.snapshot_sessions()]
+            for r in rows:
+                r["label"] = topic_display_label(r["topic_id"])
+                r["summary"] = (
+                    labeler.get_summary(r["topic_id"]) if labeler else None
+                )
         rows.sort(key=lambda r: r.get("output", 0), reverse=True)
-        return {"by": by, "rows": rows}
+        return {"by": by, "range": window, "rows": rows}
 
     @router.get("/usage/timeseries")
     def timeseries(

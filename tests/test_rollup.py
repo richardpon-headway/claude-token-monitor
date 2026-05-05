@@ -241,6 +241,80 @@ def test_utc_windows_exclude_today(make_session):
     assert w["today_local"]["output"] == 5
 
 
+def test_windowed_groups_filters_by_timestamp(make_session):
+    """Records older than the window's cutoff should not show up in the
+    grouped totals — that's the whole point of the windowed query."""
+    import datetime as _dt
+    projects_dir, write, record, _now = make_session
+    now_utc = _dt.datetime.now(_dt.timezone.utc)
+    fresh = now_utc.isoformat().replace("+00:00", "Z")
+    stale = (now_utc - _dt.timedelta(hours=2)).isoformat().replace("+00:00", "Z")
+    path = write("p", "s", [
+        record(role="user", text="working on COR-144"),
+        record(msg_id="m_old", timestamp=stale, output=999),
+        record(msg_id="m_new", timestamp=fresh, output=42),
+    ])
+    r = Rollup()
+    _ingest(r, projects_dir, path)
+
+    # 1h window — only the fresh record (42 tokens) should count
+    rows = r.windowed_groups("topic", range_minutes=60)
+    assert len(rows) == 1
+    assert rows[0]["topic_id"] == "COR-144"
+    assert rows[0]["output"] == 42
+    assert rows[0]["messages"] == 1
+
+    # 4h window — both records should count (1041 tokens)
+    rows4 = r.windowed_groups("topic", range_minutes=240)
+    assert rows4[0]["output"] == 1041
+    assert rows4[0]["messages"] == 2
+
+
+def test_windowed_groups_session_segments_are_per_window(make_session):
+    """Session rows from windowed_groups should expose a 'segments' map
+    that reflects only what happened inside the window — older segments
+    must not leak in."""
+    import datetime as _dt
+    projects_dir, write, record, _now = make_session
+    now_utc = _dt.datetime.now(_dt.timezone.utc)
+    fresh = now_utc.isoformat().replace("+00:00", "Z")
+    stale = (now_utc - _dt.timedelta(hours=2)).isoformat().replace("+00:00", "Z")
+    path = write("p", "s", [
+        record(msg_id="m1", timestamp=stale, output=300, git_branch="feat/COR-144"),
+        record(msg_id="m2", timestamp=fresh, output=42, git_branch="feat/COR-119"),
+    ])
+    r = Rollup()
+    _ingest(r, projects_dir, path)
+
+    rows = r.windowed_groups("session", range_minutes=60)
+    assert len(rows) == 1
+    s = rows[0]
+    assert s["session_id"] == "s"
+    assert s["output"] == 42
+    # segments dict only carries the in-window topic, not COR-144
+    assert set(s["segments"].keys()) == {"COR-119"}
+    assert s["topic_id"] == "COR-119"
+
+
+def test_windowed_groups_project_distinct_session_count(make_session):
+    """Multiple sessions hitting the same project should count once each
+    in the project row's `sessions` field."""
+    import datetime as _dt
+    projects_dir, write, record, _now = make_session
+    now_utc = _dt.datetime.now(_dt.timezone.utc)
+    fresh = now_utc.isoformat().replace("+00:00", "Z")
+    p1 = write("alpha", "s1", [record(msg_id="a1", timestamp=fresh, output=10)])
+    p2 = write("alpha", "s2", [record(msg_id="b1", timestamp=fresh, output=20)])
+    r = Rollup()
+    _ingest(r, projects_dir, p1)
+    _ingest(r, projects_dir, p2)
+    rows = r.windowed_groups("project", range_minutes=60)
+    assert len(rows) == 1
+    assert rows[0]["project"] == "alpha"
+    assert rows[0]["sessions"] == 2
+    assert rows[0]["output"] == 30
+
+
 def test_file_offset_persists_across_calls(make_session):
     projects_dir, write, record, now = make_session
     ts = now()

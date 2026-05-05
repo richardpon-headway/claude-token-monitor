@@ -104,6 +104,10 @@ class Rollup:
         # session_id -> running "current_prompt_ticket" used for per-record
         # topic resolution. Persisted across incremental parses.
         self.prompt_ticket_state: dict[str, str | None] = {}
+        # Raw record list for time-windowed group queries (filtered by
+        # timestamp at request time). Bounded by the 35-day mtime cutoff
+        # on input files; ~3MB at current usage volume.
+        self.records: list[UsageRecord] = []
 
     # --- writer side ----------------------------------------------------
 
@@ -188,6 +192,12 @@ class Rollup:
                 self.file_offsets[file_path] = result.bytes_read
 
     def _apply_record(self, rec: UsageRecord, session: SessionInfo) -> None:
+        # Keep raw records for windowed queries (table at the bottom of the
+        # page). Other rollups stay as they are; the records list is purely
+        # additive — same dedup guarantees apply since this is called per
+        # parser-emitted record.
+        self.records.append(rec)
+
         session.output += rec.output_tokens
         session.input += rec.input_tokens
         session.messages += 1
@@ -396,6 +406,132 @@ class Rollup:
                 ((m, v) for m, v in source.items() if m >= cutoff),
                 key=lambda x: x[0],
             )
+
+    def windowed_groups(
+        self,
+        by: str,
+        range_minutes: int,
+    ) -> list[dict]:
+        """Topic / session / project rows aggregated over the last
+        `range_minutes` of activity.
+
+        Filters self.records by record.timestamp_utc >= now_utc -
+        range_minutes, then groups according to `by`. Each row carries
+        output / input / messages totals AND last_at within the window.
+        Session rows include project, early_user_prompts, dominant
+        topic, and per-topic segments within the window.
+        """
+        now = datetime.datetime.now(datetime.timezone.utc)
+        cutoff = now - datetime.timedelta(minutes=range_minutes)
+
+        with self._lock:
+            window = [r for r in self.records if r.timestamp_utc >= cutoff]
+            # Snapshot session metadata we'll need for session-grouped rows.
+            session_meta = {
+                sid: (s.project, list(s.early_user_prompts), s.started_at)
+                for sid, s in self.by_session.items()
+            }
+
+        if by == "topic":
+            agg: dict[str, dict] = {}
+            for r in window:
+                a = agg.setdefault(r.topic_id, {
+                    "topic_id": r.topic_id,
+                    "sessions": set(),
+                    "output": 0,
+                    "input": 0,
+                    "messages": 0,
+                    "last_at": None,
+                })
+                a["sessions"].add(r.session_id)
+                a["output"] += r.output_tokens
+                a["input"] += r.input_tokens
+                a["messages"] += 1
+                if a["last_at"] is None or r.timestamp_utc > a["last_at"]:
+                    a["last_at"] = r.timestamp_utc
+            return [
+                {
+                    "topic_id": v["topic_id"],
+                    "sessions": len(v["sessions"]),
+                    "output": v["output"],
+                    "input": v["input"],
+                    "messages": v["messages"],
+                    "last_at": v["last_at"],
+                }
+                for v in agg.values()
+            ]
+
+        if by == "project":
+            agg: dict[str, dict] = {}
+            for r in window:
+                a = agg.setdefault(r.project, {
+                    "project": r.project,
+                    "sessions": set(),
+                    "output": 0,
+                    "input": 0,
+                    "messages": 0,
+                    "last_at": None,
+                })
+                a["sessions"].add(r.session_id)
+                a["output"] += r.output_tokens
+                a["input"] += r.input_tokens
+                a["messages"] += 1
+                if a["last_at"] is None or r.timestamp_utc > a["last_at"]:
+                    a["last_at"] = r.timestamp_utc
+            return [
+                {
+                    "project": v["project"],
+                    "sessions": len(v["sessions"]),
+                    "output": v["output"],
+                    "input": v["input"],
+                    "messages": v["messages"],
+                    "last_at": v["last_at"],
+                }
+                for v in agg.values()
+            ]
+
+        # by == "session"
+        agg_s: dict[str, dict] = {}
+        for r in window:
+            a = agg_s.setdefault(r.session_id, {
+                "session_id": r.session_id,
+                "project": r.project,
+                "output": 0,
+                "input": 0,
+                "messages": 0,
+                "last_at": None,
+                "started_at": None,
+                "early_user_prompts": [],
+                "segments": {},
+            })
+            a["output"] += r.output_tokens
+            a["input"] += r.input_tokens
+            a["messages"] += 1
+            if a["last_at"] is None or r.timestamp_utc > a["last_at"]:
+                a["last_at"] = r.timestamp_utc
+            seg = a["segments"].setdefault(r.topic_id, {
+                "output": 0, "input": 0, "messages": 0, "last_at": None,
+            })
+            seg["output"] += r.output_tokens
+            seg["input"] += r.input_tokens
+            seg["messages"] += 1
+            if seg["last_at"] is None or r.timestamp_utc > seg["last_at"]:
+                seg["last_at"] = r.timestamp_utc
+        # Backfill session-level metadata from the rollup's snapshot.
+        for sid, a in agg_s.items():
+            meta = session_meta.get(sid)
+            if meta is not None:
+                _, prompts, started_at = meta
+                a["early_user_prompts"] = prompts
+                a["started_at"] = started_at
+            # Dominant topic within the window.
+            if a["segments"]:
+                a["topic_id"] = max(
+                    a["segments"].items(), key=lambda kv: kv[1]["output"],
+                )[0]
+            else:
+                a["topic_id"] = None
+        return list(agg_s.values())
 
 
 def _window_totals(
