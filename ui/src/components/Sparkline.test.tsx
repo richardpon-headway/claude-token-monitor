@@ -34,12 +34,14 @@ describe("Sparkline", () => {
     expect(heights[1]).toBe(0);
   });
 
-  it("forwards className to the SVG so callers can position it", () => {
+  it("forwards className to the wrapper so callers can position it", () => {
     const { container } = render(
       <Sparkline data={[1, 2]} className="absolute inset-0" />,
     );
-    const svg = container.querySelector("svg");
-    expect(svg?.getAttribute("class")).toContain("absolute");
+    // wrapper div is the first child; className lands there now (was on
+    // the svg before the tooltip overlay was added)
+    const wrapper = container.firstChild as HTMLElement;
+    expect(wrapper.getAttribute("class")).toContain("absolute");
   });
 
   it("cumulative mode renders bars + area + line in one svg", () => {
