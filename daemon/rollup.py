@@ -226,39 +226,88 @@ class Rollup:
     def snapshot_windows(self) -> dict:
         """Today / 7d / 30d output totals (local + UTC).
 
+        Each window also includes a `spark` array — output tokens per
+        bucket — for rendering a sparkline on the corresponding tile:
+          - today_local : 24 hourly buckets (0..23, today's local day)
+          - last_*d_local : N daily buckets, oldest first, ending today
+          - last_*d_utc   : N daily buckets, oldest first, ending yesterday_utc
+
         Window semantics mirror usage.py:
           - Local windows are "Last N days" inclusive of today (still ticking).
-          - UTC windows are "Last N complete UTC days" — today_utc EXCLUDED,
-            because the leaderboard reports completed UTC days only.
+          - UTC windows are "Last N complete UTC days" — today_utc EXCLUDED.
         """
         with self._lock:
             today_local = datetime.datetime.now(LOCAL_TZ).date()
             today_utc = datetime.datetime.now(datetime.timezone.utc).date()
             yesterday_utc = today_utc - datetime.timedelta(days=1)
+
+            # Hourly spark for today (local). Iterate by_minute_local once;
+            # cheap because dict size is bounded by minutes of activity.
+            today_str = today_local.isoformat()
+            today_hours = [0] * 24
+            for m_iso, output in self.by_minute_local.items():
+                if not m_iso.startswith(today_str):
+                    continue
+                try:
+                    dt = datetime.datetime.fromisoformat(m_iso)
+                except ValueError:
+                    continue
+                if 0 <= dt.hour < 24:
+                    today_hours[dt.hour] += output
+
             return {
-                "today_local": _window_totals(
-                    self.by_day_local, today_local, today_local
-                ),
-                "last_7d_local": _window_totals(
-                    self.by_day_local,
-                    today_local - datetime.timedelta(days=6),
-                    today_local,
-                ),
-                "last_30d_local": _window_totals(
-                    self.by_day_local,
-                    today_local - datetime.timedelta(days=29),
-                    today_local,
-                ),
-                "last_7d_utc": _window_totals(
-                    self.by_day_utc,
-                    today_utc - datetime.timedelta(days=7),
-                    yesterday_utc,
-                ),
-                "last_30d_utc": _window_totals(
-                    self.by_day_utc,
-                    today_utc - datetime.timedelta(days=30),
-                    yesterday_utc,
-                ),
+                "today_local": {
+                    **_window_totals(self.by_day_local, today_local, today_local),
+                    "spark": today_hours,
+                },
+                "last_7d_local": {
+                    **_window_totals(
+                        self.by_day_local,
+                        today_local - datetime.timedelta(days=6),
+                        today_local,
+                    ),
+                    "spark": _daily_spark(
+                        self.by_day_local,
+                        today_local - datetime.timedelta(days=6),
+                        today_local,
+                    ),
+                },
+                "last_30d_local": {
+                    **_window_totals(
+                        self.by_day_local,
+                        today_local - datetime.timedelta(days=29),
+                        today_local,
+                    ),
+                    "spark": _daily_spark(
+                        self.by_day_local,
+                        today_local - datetime.timedelta(days=29),
+                        today_local,
+                    ),
+                },
+                "last_7d_utc": {
+                    **_window_totals(
+                        self.by_day_utc,
+                        today_utc - datetime.timedelta(days=7),
+                        yesterday_utc,
+                    ),
+                    "spark": _daily_spark(
+                        self.by_day_utc,
+                        today_utc - datetime.timedelta(days=7),
+                        yesterday_utc,
+                    ),
+                },
+                "last_30d_utc": {
+                    **_window_totals(
+                        self.by_day_utc,
+                        today_utc - datetime.timedelta(days=30),
+                        yesterday_utc,
+                    ),
+                    "spark": _daily_spark(
+                        self.by_day_utc,
+                        today_utc - datetime.timedelta(days=30),
+                        yesterday_utc,
+                    ),
+                },
             }
 
     def snapshot_sessions(self) -> list[SessionInfo]:
@@ -351,3 +400,19 @@ def _window_totals(
             msgs += b.messages
         d += datetime.timedelta(days=1)
     return {"output": out, "input": inp, "messages": msgs}
+
+
+def _daily_spark(
+    day_dict: dict[str, DayBucket],
+    start: datetime.date,
+    end_inclusive: datetime.date,
+) -> list[int]:
+    """Output-tokens per day across the window, oldest first. Missing
+    days render as zero (rendered flat in the sparkline)."""
+    out: list[int] = []
+    d = start
+    while d <= end_inclusive:
+        b = day_dict.get(d.isoformat())
+        out.append(b.output if b else 0)
+        d += datetime.timedelta(days=1)
+    return out

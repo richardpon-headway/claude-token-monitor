@@ -7,6 +7,7 @@ import { UsageList } from "./components/UsageList";
 import { RangeSwitcher } from "./components/RangeSwitcher";
 import { LiveChart } from "./components/LiveChart";
 import { TimezoneToggle, type Tz } from "./components/TimezoneToggle";
+import { Sparkline } from "./components/Sparkline";
 import type {
   GroupBy,
   GroupsResponse,
@@ -114,7 +115,7 @@ function Tile({
   muted = false,
 }: {
   label: string;
-  b: { output: number; input: number; messages: number };
+  b: { output: number; input: number; messages: number; spark: number[] };
   muted?: boolean;
 }) {
   return (
@@ -132,6 +133,11 @@ function Tile({
       <div className="mt-1 text-xs text-zinc-500 tabular-nums">
         {fmt(b.messages)} msgs · {fmt(b.input)} input
       </div>
+      {b.spark.length > 0 && (
+        <div className="mt-2">
+          <Sparkline data={b.spark} width={120} height={24} />
+        </div>
+      )}
     </div>
   );
 }
