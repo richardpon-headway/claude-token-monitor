@@ -110,25 +110,22 @@ def make_router(
 
     @router.get("/usage/timeseries")
     def timeseries(
-        window: str = Query("1h", alias="range", pattern="^(1h|24h|7d|30d)$"),
+        window: str = Query("1h", alias="range", pattern="^(1h|4h|1d|7d|30d)$"),
     ) -> dict:
-        if window == "1h":
-            data = rollup.snapshot_timeseries(60)
-            granularity = "minute"
-        elif window == "24h":
-            data = rollup.snapshot_timeseries(1440)
+        # 1h/4h/1d show every minute (60/240/1440 bars).
+        # 7d/30d aggregate per-minute data to wider buckets so bars are
+        # narrow and dense like Datadog: 7d uses 1-hour buckets (168 bars),
+        # 30d uses 4-hour buckets (180 bars).
+        minute_windows = {"1h": 60, "4h": 240, "1d": 1440}
+        if window in minute_windows:
+            data = rollup.snapshot_timeseries(minute_windows[window])
             granularity = "minute"
         else:
-            days = 7 if window == "7d" else 30
-            today = datetime.datetime.now(datetime.timezone.utc).astimezone().date()
-            with rollup._lock:
-                day_data = []
-                for i in range(days):
-                    d = (today - datetime.timedelta(days=days - 1 - i)).isoformat()
-                    bucket = rollup.by_day_local.get(d)
-                    day_data.append((d, bucket.output if bucket else 0))
-            data = day_data
-            granularity = "day"
+            total_min = 7 * 1440 if window == "7d" else 30 * 1440
+            bucket_min = 60 if window == "7d" else 240
+            minute_data = rollup.snapshot_timeseries(total_min)
+            data = _aggregate_buckets(minute_data, bucket_min)
+            granularity = "hour" if window == "7d" else "4hour"
         return {
             "range": window,
             "granularity": granularity,
@@ -167,3 +164,27 @@ def make_router(
 
 def _sse(data: dict) -> str:
     return f"data: {json.dumps(data)}\n\n"
+
+
+def _aggregate_buckets(
+    minute_data: list[tuple[str, int]], bucket_size_min: int,
+) -> list[tuple[str, int]]:
+    """Round each minute timestamp DOWN to the nearest bucket_size_min
+    boundary (anchored at midnight), then sum outputs in each bucket."""
+    out: dict[str, int] = {}
+    for ts_iso, output in minute_data:
+        try:
+            dt = datetime.datetime.fromisoformat(ts_iso)
+        except ValueError:
+            continue
+        sec_of_day = dt.hour * 3600 + dt.minute * 60
+        bucket_sec = (sec_of_day // (bucket_size_min * 60)) * (bucket_size_min * 60)
+        bucket_dt = dt.replace(
+            hour=bucket_sec // 3600,
+            minute=(bucket_sec % 3600) // 60,
+            second=0,
+            microsecond=0,
+        )
+        key = bucket_dt.isoformat()
+        out[key] = out.get(key, 0) + output
+    return sorted(out.items(), key=lambda kv: kv[0])

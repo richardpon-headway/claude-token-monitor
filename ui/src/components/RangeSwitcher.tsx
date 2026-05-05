@@ -1,6 +1,6 @@
 import type { RangeKey } from "../types";
 
-const OPTIONS: RangeKey[] = ["1h", "24h", "7d", "30d"];
+const OPTIONS: RangeKey[] = ["1h", "4h", "1d", "7d", "30d"];
 
 export function RangeSwitcher({
   value,
