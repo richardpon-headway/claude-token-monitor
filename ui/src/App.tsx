@@ -67,11 +67,33 @@ export default function App() {
 
       {windows && (
         <section className="mb-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <Tile label="today (local)" b={windows.today_local} />
-          <Tile label="last 7d (local)" b={windows.last_7d_local} />
-          <Tile label="last 30d (local)" b={windows.last_30d_local} />
-          <Tile label="last 7d UTC" b={windows.last_7d_utc} muted />
-          <Tile label="last 30d UTC" b={windows.last_30d_utc} muted />
+          <Tile
+            label="today (local)"
+            b={windows.today_local}
+            quotaPerBucket={WORKDAY_FLOOR / 24}
+          />
+          <Tile
+            label="last 7d (local)"
+            b={windows.last_7d_local}
+            quotaPerBucket={WORKDAY_FLOOR}
+          />
+          <Tile
+            label="last 30d (local)"
+            b={windows.last_30d_local}
+            quotaPerBucket={WORKDAY_FLOOR}
+          />
+          <Tile
+            label="last 7d UTC"
+            b={windows.last_7d_utc}
+            quotaPerBucket={WORKDAY_FLOOR}
+            muted
+          />
+          <Tile
+            label="last 30d UTC"
+            b={windows.last_30d_utc}
+            quotaPerBucket={WORKDAY_FLOOR}
+            muted
+          />
         </section>
       )}
 
@@ -109,14 +131,20 @@ export default function App() {
   );
 }
 
+const WORKDAY_FLOOR = 233_333; // tokens/workday — matches the QuotaBar constant
+
 function Tile({
   label,
   b,
   muted = false,
+  quotaPerBucket,
 }: {
   label: string;
   b: { output: number; input: number; messages: number; spark: number[] };
   muted?: boolean;
+  /** Per-bar quota for the dashed reference lines. e.g. WORKDAY_FLOOR
+   *  for daily bars, WORKDAY_FLOOR/24 for the hourly today bars. */
+  quotaPerBucket?: number;
 }) {
   return (
     <div
@@ -127,7 +155,8 @@ function Tile({
       {b.spark.length > 0 && (
         <Sparkline
           data={b.spark}
-          className="absolute inset-0 pointer-events-none"
+          quota={quotaPerBucket}
+          className="absolute inset-1 pointer-events-none"
         />
       )}
       <div className="relative">
