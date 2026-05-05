@@ -155,6 +155,38 @@ def test_snapshot_projects_aggregates_sessions(make_session):
     assert by_proj["proj-y"].output == 50
 
 
+def test_per_minute_dual_keyed_local_and_utc(make_session):
+    """Each ingested record should land in BOTH by_minute_local and
+    by_minute_utc with equal totals, so /api/usage/timeseries can serve
+    either timezone without reaggregating raw records."""
+    projects_dir, write, record, now = make_session
+    path = write("p", "s", [
+        record(msg_id="m1", timestamp=now(), output=300),
+        record(msg_id="m2", timestamp=now(), output=200),
+    ])
+    r = Rollup()
+    _ingest(r, projects_dir, path)
+    assert sum(r.by_minute_local.values()) == 500
+    assert sum(r.by_minute_utc.values()) == 500
+
+
+def test_snapshot_timeseries_tz_arg(make_session):
+    """tz='local' returns local-iso keys, tz='utc' returns UTC-iso keys.
+    Both summed totals match."""
+    projects_dir, write, record, now = make_session
+    path = write("p", "s", [
+        record(msg_id="m1", timestamp=now(), output=100),
+        record(msg_id="m2", timestamp=now(), output=200),
+    ])
+    r = Rollup()
+    _ingest(r, projects_dir, path)
+    local = r.snapshot_timeseries(60, tz="local")
+    utc = r.snapshot_timeseries(60, tz="utc")
+    assert sum(v for _, v in local) == sum(v for _, v in utc) == 300
+    # UTC iso has '+00:00' suffix; local has the machine's offset.
+    assert utc and utc[0][0].endswith("+00:00")
+
+
 def test_utc_windows_exclude_today(make_session):
     """usage.py's UTC windows are 'Last N complete UTC days' — today excluded.
     Local windows include today (still-ticking). Regression for parity bug
