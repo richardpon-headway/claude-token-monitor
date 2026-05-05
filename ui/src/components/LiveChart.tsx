@@ -141,6 +141,25 @@ export function LiveChart({
     [padded, range, tz],
   );
 
+  // Extend the domain by half a bucket on each side. Recharts centers
+  // each bar on its ts coordinate, so the leftmost/rightmost bars
+  // would be half-clipped at the plot edges with a tight domain (the
+  // left bar visibly overlapped the y-axis).
+  const domain = useMemo<[number, number] | undefined>(() => {
+    if (padded.length === 0) return undefined;
+    const widthMin: Record<TimeseriesResponse["granularity"], number> = {
+      minute: 1,
+      hour: 60,
+      "4hour": 240,
+      day: 1440,
+    };
+    const halfWidthMs = (widthMin[data.granularity] * 60_000) / 2;
+    return [
+      padded[0].ts - halfWidthMs,
+      padded[padded.length - 1].ts + halfWidthMs,
+    ];
+  }, [padded, data.granularity]);
+
   return (
     <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
       <div className="h-48">
@@ -154,7 +173,7 @@ export function LiveChart({
               dataKey="ts"
               type="number"
               scale="time"
-              domain={["dataMin", "dataMax"]}
+              domain={domain ?? ["dataMin", "dataMax"]}
               ticks={ticks}
               tickFormatter={(ts) => smartTickLabel(Number(ts), tz)}
               tick={{ fill: "#71717a", fontSize: 11 }}
