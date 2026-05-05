@@ -130,21 +130,16 @@ export function LiveChart({
   );
   const isMinute = data.granularity === "minute";
 
-  // For each range, set how many bars Recharts should skip between
-  // rendered ticks. Combined with smartTickLabel below — which returns
-  // an empty string for buckets that aren't "interesting" (non-midnights
-  // for 30d, non-15min-marks for 1h, etc) — this keeps both the tick
-  // *count* manageable and the visible labels aligned to round times.
-  const tickInterval = useMemo(() => {
-    const stride: Record<RangeKey, number> = {
-      "1h": 14,    // ~4 ticks across 60 min bars
-      "4h": 14,    // ~16 candidates across 240; formatter drops non-:00s
-      "1d": 59,    // ~24 candidates across 1440; formatter drops non-4h
-      "7d": 11,    // ~14 candidates across 168 hour bars
-      "30d": 5,    // ~30 candidates across 180 4h bars
-    };
-    return stride[range];
-  }, [range]);
+  // Explicit tick positions: only "interesting" timestamps (midnights and
+  // a handful of round hour marks per range). Time-scale axis (below)
+  // honors arbitrary numeric tick values, so this works reliably.
+  const ticks = useMemo(
+    () =>
+      padded
+        .filter((p) => isTickTime(p.ts, range, tz))
+        .map((p) => p.ts),
+    [padded, range, tz],
+  );
 
   return (
     <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
@@ -157,15 +152,16 @@ export function LiveChart({
           >
             <XAxis
               dataKey="ts"
-              type="category"
-              tickFormatter={(ts) => {
-                const n = Number(ts);
-                return isTickTime(n, range, tz) ? smartTickLabel(n, tz) : "";
-              }}
+              type="number"
+              scale="time"
+              domain={["dataMin", "dataMax"]}
+              ticks={ticks}
+              tickFormatter={(ts) => smartTickLabel(Number(ts), tz)}
               tick={{ fill: "#71717a", fontSize: 11 }}
               tickLine={{ stroke: "#3f3f46" }}
               axisLine={{ stroke: "#3f3f46" }}
-              interval={tickInterval}
+              interval={0}
+              allowDuplicatedCategory={false}
             />
             <YAxis
               tick={{ fill: "#71717a", fontSize: 11 }}
