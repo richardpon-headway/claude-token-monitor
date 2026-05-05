@@ -314,6 +314,62 @@ def test_labeler_collect_prompts_only_sessions_in_topic(tmp_path, monkeypatch):
     assert "B1" not in out
 
 
+def test_labeler_tick_resyncs_from_disk_before_processing(tmp_path, monkeypatch):
+    """If another process writes a summary to the cache file, the next tick
+    should pick it up via disk-reload rather than re-summarize the topic."""
+    rollup = _FakeRollup(
+        topics=["COR-144"],
+        sessions=[_FakeSession({"COR-144": object()}, ["x"])],
+    )
+    cache_path = tmp_path / "c.json"
+    summarize_calls: list[str] = []
+    monkeypatch.setattr(
+        labeler, "summarize_topic",
+        lambda tid, prompts: (summarize_calls.append(tid), "from_summarize")[1],
+    )
+    lab = labeler.Labeler(rollup, cache_path=cache_path)
+    # Externally write a cached summary (simulating another daemon process).
+    labeler.save_cache(
+        {"COR-144": labeler.CachedSummary(summary="from_disk", fetched_at=time.time())},
+        cache_path,
+    )
+    n = lab.tick()
+    # No new summarize_topic call — entry already on disk and fresh.
+    assert n == 0
+    assert summarize_calls == []
+    assert lab.get_summary("COR-144") == "from_disk"
+
+
+def test_labeler_tick_resync_prefers_newer_fetched_at(tmp_path, monkeypatch):
+    rollup = _FakeRollup(topics=[], sessions=[])
+    cache_path = tmp_path / "c.json"
+    lab = labeler.Labeler(rollup, cache_path=cache_path)
+    # Older value in memory
+    lab._cache["COR-144"] = labeler.CachedSummary(summary="old_inmem", fetched_at=100.0)
+    # Newer value externally written to disk
+    labeler.save_cache(
+        {"COR-144": labeler.CachedSummary(summary="new_disk", fetched_at=200.0)},
+        cache_path,
+    )
+    lab.tick()
+    assert lab.get_summary("COR-144") == "new_disk"
+
+
+def test_labeler_tick_resync_keeps_newer_inmem_when_disk_is_stale(tmp_path, monkeypatch):
+    rollup = _FakeRollup(topics=[], sessions=[])
+    cache_path = tmp_path / "c.json"
+    lab = labeler.Labeler(rollup, cache_path=cache_path)
+    # Newer value in memory (e.g. just labeled)
+    lab._cache["COR-144"] = labeler.CachedSummary(summary="new_inmem", fetched_at=200.0)
+    # Older value on disk
+    labeler.save_cache(
+        {"COR-144": labeler.CachedSummary(summary="old_disk", fetched_at=100.0)},
+        cache_path,
+    )
+    lab.tick()
+    assert lab.get_summary("COR-144") == "new_inmem"
+
+
 def test_labeler_start_stop_lifecycle(tmp_path, monkeypatch):
     rollup = _FakeRollup([], [])
     monkeypatch.setattr(labeler, "summarize_topic", lambda *a, **kw: None)

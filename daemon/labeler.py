@@ -248,6 +248,16 @@ class Labeler:
     def tick(self) -> int:
         """Run one labeling pass; return number of topics labeled this tick.
         Public so tests can drive it without spinning a thread."""
+        # Re-sync from disk first. Picks up entries written by another
+        # process (e.g. a previous daemon run, or a side-by-side smoke
+        # test) so we don't redundantly re-summarize topics whose entries
+        # already exist on disk. Take the newer fetched_at on conflict.
+        with self._cache_lock:
+            for k, v in load_cache(self.cache_path).items():
+                existing = self._cache.get(k)
+                if existing is None or v.fetched_at > existing.fetched_at:
+                    self._cache[k] = v
+
         topics = [t.topic_id for t in self.rollup.snapshot_topics()]
         pending: list[str] = []
         with self._cache_lock:
