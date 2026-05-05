@@ -59,8 +59,16 @@ function padBuckets(
   };
   const total = totalBars[range];
 
-  // Anchor the rightmost bucket on now (rounded DOWN to bucket boundary).
-  const nowBucketMs = Math.floor(now.getTime() / widthMs) * widthMs;
+  // Anchor the rightmost bucket to LOCAL midnight + N*widthMs. The daemon
+  // does the same on its side ('round down to nearest bucket within the
+  // local day'), so this is what makes minute-key lookups match. For
+  // widthMin in {1, 60, 240, 1440} (all factors of 1440) the alignment
+  // also continues across day boundaries when we walk backward.
+  const dayStart = new Date(now);
+  dayStart.setHours(0, 0, 0, 0);
+  const msSinceMidnight = now.getTime() - dayStart.getTime();
+  const nowBucketMs =
+    dayStart.getTime() + Math.floor(msSinceMidnight / widthMs) * widthMs;
   const startMs = nowBucketMs - (total - 1) * widthMs;
 
   for (let i = 0; i < total; i++) {
