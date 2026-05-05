@@ -1,0 +1,28 @@
+ui/src/components/Sparkline.tsx
+  d65ea34b6f61fd51 3-10,20-24,28,30,34
+ui/src/App.tsx
+  d65ea34b6f61fd51 137-138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "7cff74b9e79cc5b32ba420284139bdd018b39faa",
+  "prompts": {
+    "d65ea34b6f61fd51": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9a7f6113-acbc-4a6a-9c47-d596851dfae0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Richard Pon",
+      "messages": [],
+      "total_additions": 234,
+      "total_deletions": 216,
+      "accepted_lines": 252,
+      "overriden_lines": 0,
+      "custom_attributes": {
+        "runtime": "local"
+      }
+    }
+  }
+}
