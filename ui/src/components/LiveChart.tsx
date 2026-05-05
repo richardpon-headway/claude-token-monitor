@@ -80,17 +80,39 @@ function padBuckets(
 
 function pad(n: number): string { return String(n).padStart(2, "0"); }
 
-function formatTickMinute(ts: number, tz: "local" | "utc"): string {
+/** Decide whether a given timestamp deserves an x-axis tick, per range.
+ *  The intent is to keep tick density readable AND ensure date labels
+ *  land exactly at midnight in the chosen timezone. */
+function isTickTime(
+  ts: number,
+  range: RangeKey,
+  tz: "local" | "utc",
+): boolean {
   const d = new Date(ts);
-  return tz === "utc"
-    ? `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
-    : `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const h = tz === "utc" ? d.getUTCHours() : d.getHours();
+  const m = tz === "utc" ? d.getUTCMinutes() : d.getMinutes();
+  switch (range) {
+    case "1h":  return m % 15 === 0;
+    case "4h":  return m === 0;
+    case "1d":  return m === 0 && h % 4 === 0;
+    case "7d":  return m === 0 && (h === 0 || h === 12);
+    case "30d": return m === 0 && h === 0;
+  }
 }
-function formatTickDay(ts: number, tz: "local" | "utc"): string {
+
+/** Render a tick label. Midnight → "M/D"; otherwise "HH:MM" (or "HH:00"
+ *  when the tick lands on the hour). Keeps date labels visually distinct
+ *  from time-of-day labels. */
+function smartTickLabel(ts: number, tz: "local" | "utc"): string {
   const d = new Date(ts);
-  return tz === "utc"
-    ? `${d.getUTCMonth() + 1}/${d.getUTCDate()}`
-    : `${d.getMonth() + 1}/${d.getDate()}`;
+  const h = tz === "utc" ? d.getUTCHours() : d.getHours();
+  const m = tz === "utc" ? d.getUTCMinutes() : d.getMinutes();
+  if (h === 0 && m === 0) {
+    return tz === "utc"
+      ? `${d.getUTCMonth() + 1}/${d.getUTCDate()}`
+      : `${d.getMonth() + 1}/${d.getDate()}`;
+  }
+  return `${pad(h)}:${pad(m)}`;
 }
 
 export function LiveChart({
@@ -107,9 +129,17 @@ export function LiveChart({
     [data.buckets, range, data.granularity, tz],
   );
   const isMinute = data.granularity === "minute";
-  // Sub-day granularities show clock time on ticks; day-or-coarser show M/D.
-  const tickFormatter = (ts: number) =>
-    isMinute ? formatTickMinute(ts, tz) : formatTickDay(ts, tz);
+
+  // Explicit tick positions: only "interesting" timestamps (midnights,
+  // and a handful of hour marks per range). Stringified because XAxis
+  // is type="category" with a numeric dataKey.
+  const tickStrings = useMemo(
+    () =>
+      padded
+        .filter((p) => isTickTime(p.ts, range, tz))
+        .map((p) => String(p.ts)),
+    [padded, range, tz],
+  );
 
   return (
     <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
@@ -123,12 +153,12 @@ export function LiveChart({
             <XAxis
               dataKey="ts"
               type="category"
-              tickFormatter={(ts) => tickFormatter(Number(ts))}
+              ticks={tickStrings}
+              tickFormatter={(ts) => smartTickLabel(Number(ts), tz)}
               tick={{ fill: "#71717a", fontSize: 11 }}
               tickLine={{ stroke: "#3f3f46" }}
               axisLine={{ stroke: "#3f3f46" }}
-              minTickGap={28}
-              interval="preserveStartEnd"
+              interval={0}
             />
             <YAxis
               tick={{ fill: "#71717a", fontSize: 11 }}
