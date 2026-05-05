@@ -1,0 +1,28 @@
+tests/test_labeler.py
+  d65ea34b6f61fd51 317-372
+daemon/labeler.py
+  d65ea34b6f61fd51 251-260
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "cffbeabb572da3263960f5b783a8f835475ec75c",
+  "prompts": {
+    "d65ea34b6f61fd51": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9a7f6113-acbc-4a6a-9c47-d596851dfae0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Richard Pon",
+      "messages": [],
+      "total_additions": 66,
+      "total_deletions": 0,
+      "accepted_lines": 1298,
+      "overriden_lines": 0,
+      "custom_attributes": {
+        "runtime": "local"
+      }
+    }
+  }
+}
