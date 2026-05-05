@@ -127,13 +127,13 @@ export default function App() {
             label="last 7d"
             b={tz === "utc" ? windows.last_7d_utc : windows.last_7d_local}
             quotaPerBucket={WORKDAY_FLOOR}
-            tooltipFor={dailyTooltipMaker(7, tz === "utc" ? 1 : 0, tz)}
+            tooltipFor={dailyTooltipMaker(7, 0, tz)}
           />
           <Tile
             label="last 30d"
             b={tz === "utc" ? windows.last_30d_utc : windows.last_30d_local}
             quotaPerBucket={WORKDAY_FLOOR}
-            tooltipFor={dailyTooltipMaker(30, tz === "utc" ? 1 : 0, tz)}
+            tooltipFor={dailyTooltipMaker(30, 0, tz)}
           />
         </section>
       )}
