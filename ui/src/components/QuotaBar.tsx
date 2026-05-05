@@ -24,14 +24,10 @@ export function QuotaBar({ todayOutput }: { todayOutput: number }) {
     ticks.push((k / scaleMax) * 100);
   }
 
-  const color =
-    pct > 100 ? "bg-red-500"
-    : pct > 80 ? "bg-amber-400"
-    : "bg-emerald-500";
-  const pctColor =
-    pct > 100 ? "text-red-400"
-    : pct > 80 ? "text-amber-300"
-    : "text-emerald-400";
+  // Single emerald regardless of percentage — overage is communicated by
+  // the bar's position relative to the 1×/2×/3× tick marks, not by hue.
+  const color = "bg-emerald-500";
+  const pctColor = "text-emerald-400";
 
   return (
     <div className="space-y-1">
