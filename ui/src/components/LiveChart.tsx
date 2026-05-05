@@ -12,14 +12,18 @@ import type { RangeKey, TimeseriesResponse } from "../types";
 
 const WORKDAY_FLOOR = 233_333;
 const MINUTES_PER_DAY = 24 * 60;
-const PER_MIN_FLOOR = WORKDAY_FLOOR / MINUTES_PER_DAY;
 
-/** Number of minute buckets to render for each minute-granular range. */
-const MINUTE_BUCKET_COUNT: Record<string, number> = {
-  "1h": 60,
-  "4h": 240,
-  "1d": MINUTES_PER_DAY,
-};
+/** Per-bucket workday-floor reference value. The floor is "tokens per
+ *  workday"; scale it by the bucket width to compare against per-bucket
+ *  output. */
+function floorForBucket(granularity: TimeseriesResponse["granularity"]): number {
+  switch (granularity) {
+    case "minute": return WORKDAY_FLOOR / MINUTES_PER_DAY;
+    case "hour":   return WORKDAY_FLOOR / 24;
+    case "4hour":  return WORKDAY_FLOOR / 6;
+    case "day":    return WORKDAY_FLOOR;
+  }
+}
 
 /** Pads the buckets so missing time slices render as zeros. Daemon only
  *  returns slices with activity; UI fills the gaps so the chart has a
@@ -27,67 +31,50 @@ const MINUTE_BUCKET_COUNT: Record<string, number> = {
 function padBuckets(
   buckets: TimeseriesResponse["buckets"],
   range: RangeKey,
-  granularity: "minute" | "day",
+  granularity: TimeseriesResponse["granularity"],
 ): { t: string; output: number; ts: number }[] {
-  const have = new Map(buckets.map((b) => [b.t, b.output]));
+  const have = new Map<number, number>(
+    buckets.map((b) => [Math.floor(new Date(b.t).getTime() / 60_000), b.output]),
+  );
   const now = new Date();
   const out: { t: string; output: number; ts: number }[] = [];
 
-  if (granularity === "minute") {
-    const total = MINUTE_BUCKET_COUNT[range] ?? 60;
-    // bucket key matches what the rollup emits: minute_iso() with seconds=0
-    const start = new Date(now);
-    start.setSeconds(0, 0);
-    start.setMinutes(start.getMinutes() - (total - 1));
-    for (let i = 0; i < total; i++) {
-      const dt = new Date(start.getTime() + i * 60_000);
-      // Daemon emits ISO with offset; we match by the exact key it returned
-      // when present, otherwise emit a synthetic key with our own offset.
-      const synthetic = isoMinute(dt);
-      // Fallback match: linear scan if exact key not present (rare).
-      let val = have.get(synthetic);
-      if (val === undefined) {
-        // try matching trimmed-to-minute UTC iso
-        for (const [k, v] of have.entries()) {
-          if (sameMinute(k, dt)) { val = v; break; }
-        }
-      }
-      out.push({ t: synthetic, output: val ?? 0, ts: dt.getTime() });
-    }
-  } else {
-    const days = range === "7d" ? 7 : 30;
-    const today = new Date(now);
-    today.setHours(0, 0, 0, 0);
-    for (let i = days - 1; i >= 0; i--) {
-      const dt = new Date(today.getTime() - i * 86400_000);
-      const key = dt.toISOString().slice(0, 10); // YYYY-MM-DD
-      out.push({
-        t: key,
-        output: have.get(key) ?? 0,
-        ts: dt.getTime(),
-      });
-    }
+  // Each granularity is just "how many minutes wide is one bar?"
+  const bucketWidthMin: Record<TimeseriesResponse["granularity"], number> = {
+    minute: 1,
+    hour: 60,
+    "4hour": 240,
+    day: 1440,
+  };
+  const widthMin = bucketWidthMin[granularity];
+  const widthMs = widthMin * 60_000;
+
+  // Total bars in the view
+  const totalBars: Record<RangeKey, number> = {
+    "1h": 60,
+    "4h": 240,
+    "1d": 1440,
+    "7d": 7 * 24,        // 168 hour-bars
+    "30d": 30 * 6,       // 180 four-hour-bars
+  };
+  const total = totalBars[range];
+
+  // Anchor the rightmost bucket on now (rounded DOWN to bucket boundary).
+  const nowBucketMs = Math.floor(now.getTime() / widthMs) * widthMs;
+  const startMs = nowBucketMs - (total - 1) * widthMs;
+
+  for (let i = 0; i < total; i++) {
+    const ts = startMs + i * widthMs;
+    const minuteKey = Math.floor(ts / 60_000);
+    out.push({
+      t: new Date(ts).toISOString(),
+      output: have.get(minuteKey) ?? 0,
+      ts,
+    });
   }
   return out;
 }
 
-function isoMinute(dt: Date): string {
-  // Local time iso with offset, second-precision trimmed to :00
-  const tzMin = -dt.getTimezoneOffset();
-  const sign = tzMin >= 0 ? "+" : "-";
-  const off = Math.abs(tzMin);
-  const oh = String(Math.floor(off / 60)).padStart(2, "0");
-  const om = String(off % 60).padStart(2, "0");
-  return (
-    `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}` +
-    `T${pad(dt.getHours())}:${pad(dt.getMinutes())}:00${sign}${oh}:${om}`
-  );
-}
-function sameMinute(iso: string, dt: Date): boolean {
-  const a = new Date(iso).getTime();
-  const b = dt.getTime();
-  return Math.floor(a / 60_000) === Math.floor(b / 60_000);
-}
 function pad(n: number): string { return String(n).padStart(2, "0"); }
 
 function formatTickMinute(ts: number): string {
@@ -111,8 +98,9 @@ export function LiveChart({
     [data.buckets, range, data.granularity],
   );
   const isMinute = data.granularity === "minute";
-  const floor1x = isMinute ? PER_MIN_FLOOR : WORKDAY_FLOOR;
+  const floor1x = floorForBucket(data.granularity);
   const floor2x = floor1x * 2;
+  // Sub-day granularities show clock time on ticks; day-or-coarser show M/D.
   const tickFormatter = isMinute ? formatTickMinute : formatTickDay;
 
   return (
