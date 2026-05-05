@@ -211,10 +211,13 @@ def test_snapshot_timeseries_tz_arg(make_session):
     assert utc and utc[0][0].endswith("+00:00")
 
 
-def test_utc_windows_exclude_today(make_session):
-    """usage.py's UTC windows are 'Last N complete UTC days' — today excluded.
-    Local windows include today (still-ticking). Regression for parity bug
-    found 2026-05-04 against /token-usage output."""
+def test_utc_windows_include_today(make_session):
+    """Both LOCAL and UTC last 7d/30d windows include today (in-progress
+    day). Earlier we excluded today_utc to mirror token-usage's
+    'complete UTC days' semantics, but that confused users — the
+    rightmost bar should be 'today' regardless of timezone. Local
+    parity with the skill is preserved; UTC parity is intentionally
+    dropped."""
     import datetime
     projects_dir, write, record, now = make_session
     today_utc = datetime.datetime.now(datetime.timezone.utc).date()
@@ -223,7 +226,6 @@ def test_utc_windows_exclude_today(make_session):
     today_local = datetime.datetime.now().astimezone().date().isoformat()
 
     r = Rollup()
-    # Seed today's UTC bucket only (a value impossible to ignore if included).
     r.load_cache_days(
         by_utc_date={
             today_utc_iso: {"output": 1_000_000, "input": 0, "messages": 1},
@@ -234,10 +236,10 @@ def test_utc_windows_exclude_today(make_session):
         },
     )
     w = r.snapshot_windows()
-    # UTC windows must exclude today_utc's 1M.
-    assert w["last_7d_utc"]["output"] == 7
-    assert w["last_30d_utc"]["output"] == 7
-    # Local "today" window must include today_local.
+    # UTC windows must INCLUDE today_utc's 1M — sum is 1M + 7.
+    assert w["last_7d_utc"]["output"] == 1_000_007
+    assert w["last_30d_utc"]["output"] == 1_000_007
+    # Local "today" window unchanged — includes today_local.
     assert w["today_local"]["output"] == 5
 
 
