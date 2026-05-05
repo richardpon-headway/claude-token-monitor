@@ -42,12 +42,30 @@ describe("Sparkline", () => {
     expect(svg?.getAttribute("class")).toContain("absolute");
   });
 
-  it("cumulative mode renders an area path instead of rects", () => {
+  it("cumulative mode renders bars + area + line in one svg", () => {
     const { container } = render(
       <Sparkline data={[10, 10, 10]} mode="cumulative" />,
     );
-    expect(container.querySelectorAll("rect").length).toBe(0);
-    expect(container.querySelectorAll("path").length).toBe(2); // area + line
+    // 3 hourly bars at the bottom (one per data point)
+    expect(container.querySelectorAll("rect").length).toBe(3);
+    // area path + line path on top
+    expect(container.querySelectorAll("path").length).toBe(2);
+  });
+
+  it("cumulative line never tops out: lineMax exceeds total when quota is set", () => {
+    // total=300, quota=100 -> floor(300/100)+1 = 4 -> lineMax=400
+    // line endpoint y = 100 - (300/400)*100 = 25 (i.e. 75% up the chart, not at top)
+    const { container } = render(
+      <Sparkline data={[100, 100, 100]} mode="cumulative" quota={100} />,
+    );
+    const linePath = container.querySelectorAll("path")[1];
+    const d = linePath.getAttribute("d") ?? "";
+    // last "L x y" should have y around 25, not 0
+    const matches = d.match(/L\s+([\d.]+)\s+([\d.]+)/g);
+    const lastL = matches?.[matches.length - 1] ?? "";
+    const yPart = lastL.split(/\s+/).pop() ?? "";
+    expect(Number(yPart)).toBeGreaterThan(20);
+    expect(Number(yPart)).toBeLessThan(30);
   });
 
   it("draws quota reference lines at integer multiples within the y-range", () => {
