@@ -1,0 +1,32 @@
+ui/src/App.tsx
+  d65ea34b6f61fd51 42
+daemon/routes.py
+  d65ea34b6f61fd51 94-104,106-110,112
+daemon/rollup.py
+  d65ea34b6f61fd51 107-110,195-200,410-535
+tests/test_rollup.py
+  d65ea34b6f61fd51 244-317
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "7092697b0bdd3a7d2d41327ec488f624b881b551",
+  "prompts": {
+    "d65ea34b6f61fd51": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9a7f6113-acbc-4a6a-9c47-d596851dfae0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Richard Pon",
+      "messages": [],
+      "total_additions": 229,
+      "total_deletions": 209,
+      "accepted_lines": 771,
+      "overriden_lines": 0,
+      "custom_attributes": {
+        "runtime": "local"
+      }
+    }
+  }
+}
