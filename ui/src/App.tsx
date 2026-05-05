@@ -18,6 +18,16 @@ import type {
 
 const fmt = (n: number) => n.toLocaleString();
 
+/** Today's date as "M/D" in the chosen timezone. */
+function formatTodayDate(tz: Tz): string {
+  const opts: Intl.DateTimeFormatOptions = {
+    month: "numeric",
+    day: "numeric",
+    ...(tz === "utc" ? { timeZone: "UTC" } : {}),
+  };
+  return new Intl.DateTimeFormat(undefined, opts).format(new Date());
+}
+
 export default function App() {
   const { refreshKey, live } = useUsageStream();
   const [groupBy, setGroupBy] = useState<GroupBy>("topic");
@@ -80,7 +90,7 @@ export default function App() {
       {windows && (
         <section className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Tile
-            label="today"
+            label={`today · ${formatTodayDate(tz)}`}
             b={tz === "utc" ? windows.today_utc : windows.today_local}
             // Hourly bars only — no quota lines on a single-day window.
           />
