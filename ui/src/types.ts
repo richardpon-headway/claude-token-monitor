@@ -4,6 +4,9 @@ export interface DayBucket {
   output: number;
   input: number;
   messages: number;
+  /** Per-bucket output tokens for the tile sparkline. Length depends on
+   *  the window: 24 hourly buckets for today, 7 daily for 7d, 30 for 30d. */
+  spark: number[];
 }
 
 export interface Windows {

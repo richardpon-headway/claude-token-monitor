@@ -23,16 +23,35 @@ describe("QuotaBar", () => {
     expect(container.querySelector(".bg-emerald-500")).toBeFalsy();
   });
 
-  it("uses red color and shows over-100 indicator above floor", () => {
+  it("uses red color when over 100%", () => {
     const { container } = render(<QuotaBar todayOutput={Math.round(FLOOR * 1.5)} />);
     expect(container.querySelector(".bg-red-500")).toBeTruthy();
-    // overflow strip uses red-500/40
-    expect(container.querySelector(".bg-red-500\\/40")).toBeTruthy();
   });
 
-  it("clamps the bar at 100% width even when over quota", () => {
-    const { container } = render(<QuotaBar todayOutput={FLOOR * 5} />);
+  it("auto-scales past 100%: bar width = pct / scaleMax", () => {
+    // 105% -> scaleMax=200 -> bar at 52.5%
+    const { container } = render(<QuotaBar todayOutput={Math.round(FLOOR * 1.05)} />);
     const bar = container.querySelector(".bg-red-500") as HTMLElement;
-    expect(bar.style.width).toBe("100%");
+    expect(parseFloat(bar.style.width)).toBeCloseTo(52.5, 0);
+  });
+
+  it("draws a tick mark at 100% when over quota", () => {
+    // 150% -> scaleMax=200 -> 1 tick at left=50%
+    const { container } = render(<QuotaBar todayOutput={Math.round(FLOOR * 1.5)} />);
+    const ticks = container.querySelectorAll("[aria-hidden]");
+    expect(ticks.length).toBe(1);
+    expect((ticks[0] as HTMLElement).style.left).toBe("50%");
+  });
+
+  it("draws multiple tick marks for high multiples", () => {
+    // 244% -> scaleMax=300 -> ticks at 100/300=33.33% and 200/300=66.67%
+    const { container } = render(<QuotaBar todayOutput={Math.round(FLOOR * 2.44)} />);
+    const ticks = container.querySelectorAll("[aria-hidden]");
+    expect(ticks.length).toBe(2);
+  });
+
+  it("draws no internal ticks under 100%", () => {
+    const { container } = render(<QuotaBar todayOutput={FLOOR / 2} />);
+    expect(container.querySelectorAll("[aria-hidden]").length).toBe(0);
   });
 });
