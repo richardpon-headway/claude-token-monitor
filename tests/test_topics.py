@@ -21,6 +21,21 @@ def test_extract_tickets_requires_2_to_5_uppercase():
     assert extract_tickets("cor-144") == []
 
 
+def test_extract_tickets_handles_underscore_after_digits():
+    """Branch names like 'rpon/COR-185_wits_...' must still match COR-185.
+    Old `\\b` after the digit run failed because `_` is a word char."""
+    assert extract_tickets("rpon/COR-185_wits_tables") == ["COR-185"]
+    assert extract_tickets("feat/DT-1890_reduce_overhead") == ["DT-1890"]
+
+
+def test_extract_tickets_rejects_glued_alphanumeric():
+    """Don't extract from runs that would change the ticket meaning."""
+    # COR-1850 is a valid 4-digit number after the dash, so this matches:
+    assert extract_tickets("COR-1850") == ["COR-1850"]
+    # But COR-185abc isn't a real ticket — letters change semantics.
+    assert extract_tickets("COR-185abc") == []
+
+
 def test_assign_topic_prefers_prompt_mention_over_folder():
     """A ticket mentioned in a prompt should beat a different ticket only in
     the folder name — most-common-wins."""
