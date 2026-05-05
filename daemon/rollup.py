@@ -241,24 +241,37 @@ class Rollup:
             today_utc = datetime.datetime.now(datetime.timezone.utc).date()
             yesterday_utc = today_utc - datetime.timedelta(days=1)
 
-            # Hourly spark for today (local). Iterate by_minute_local once;
-            # cheap because dict size is bounded by minutes of activity.
-            today_str = today_local.isoformat()
-            today_hours = [0] * 24
-            for m_iso, output in self.by_minute_local.items():
-                if not m_iso.startswith(today_str):
-                    continue
-                try:
-                    dt = datetime.datetime.fromisoformat(m_iso)
-                except ValueError:
-                    continue
-                if 0 <= dt.hour < 24:
-                    today_hours[dt.hour] += output
+            # Hourly sparks for "today" — local and UTC. Iterate the
+            # corresponding minute dicts; cheap since they're bounded by
+            # minutes of actual activity.
+            def _hourly_today(source: dict[str, int], today_iso: str) -> list[int]:
+                hours = [0] * 24
+                for m_iso, output in source.items():
+                    if not m_iso.startswith(today_iso):
+                        continue
+                    try:
+                        dt = datetime.datetime.fromisoformat(m_iso)
+                    except ValueError:
+                        continue
+                    if 0 <= dt.hour < 24:
+                        hours[dt.hour] += output
+                return hours
+
+            today_hours_local = _hourly_today(
+                self.by_minute_local, today_local.isoformat()
+            )
+            today_hours_utc = _hourly_today(
+                self.by_minute_utc, today_utc.isoformat()
+            )
 
             return {
                 "today_local": {
                     **_window_totals(self.by_day_local, today_local, today_local),
-                    "spark": today_hours,
+                    "spark": today_hours_local,
+                },
+                "today_utc": {
+                    **_window_totals(self.by_day_utc, today_utc, today_utc),
+                    "spark": today_hours_utc,
                 },
                 "last_7d_local": {
                     **_window_totals(

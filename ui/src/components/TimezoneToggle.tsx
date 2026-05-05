@@ -1,6 +1,24 @@
+import { useMemo } from "react";
+
 export type Tz = "local" | "utc";
 
 const OPTIONS: Tz[] = ["local", "utc"];
+
+/** Best-effort short timezone abbreviation (e.g. "PDT") for the local
+ *  zone, derived via Intl. Returns "" if the platform doesn't expose a
+ *  timeZoneName part. */
+function useLocalTzAbbreviation(): string {
+  return useMemo(() => {
+    try {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZoneName: "short",
+      }).formatToParts(new Date());
+      return parts.find((p) => p.type === "timeZoneName")?.value ?? "";
+    } catch {
+      return "";
+    }
+  }, []);
+}
 
 export function TimezoneToggle({
   value,
@@ -9,10 +27,13 @@ export function TimezoneToggle({
   value: Tz;
   onChange: (v: Tz) => void;
 }) {
+  const localAbbr = useLocalTzAbbreviation();
   return (
     <div className="inline-flex rounded-md border border-zinc-800 bg-zinc-900 p-0.5">
       {OPTIONS.map((o) => {
         const active = o === value;
+        const label =
+          o === "local" && localAbbr ? `local · ${localAbbr}` : o;
         return (
           <button
             key={o}
@@ -24,7 +45,7 @@ export function TimezoneToggle({
             }`}
             aria-pressed={active}
           >
-            {o}
+            {label}
           </button>
         );
       })}

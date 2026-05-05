@@ -11,6 +11,7 @@ export interface DayBucket {
 
 export interface Windows {
   today_local: DayBucket;
+  today_utc: DayBucket;
   last_7d_local: DayBucket;
   last_30d_local: DayBucket;
   last_7d_utc: DayBucket;
