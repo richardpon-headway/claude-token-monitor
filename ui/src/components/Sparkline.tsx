@@ -28,11 +28,15 @@ export function Sparkline({
   data,
   mode = "bars",
   quota,
+  tooltipFor,
   className,
 }: {
   data: number[];
   mode?: "bars" | "cumulative";
   quota?: number;
+  /** Called per bar to produce a hover tooltip string (rendered as a
+   *  native SVG <title> child — free browser tooltip, no JS state). */
+  tooltipFor?: (value: number, index: number) => string;
   className?: string;
 }) {
   if (data.length === 0) return null;
@@ -48,7 +52,7 @@ export function Sparkline({
       className={className}
     >
       {mode === "bars"
-        ? renderBars(data, quota)
+        ? renderBars(data, quota, tooltipFor)
         : renderCumulative(data, quota)}
     </svg>
   );
@@ -56,7 +60,11 @@ export function Sparkline({
 
 // --- bars mode -----------------------------------------------------------
 
-function renderBars(data: number[], quota?: number) {
+function renderBars(
+  data: number[],
+  quota?: number,
+  tooltipFor?: (value: number, index: number) => string,
+) {
   const max = Math.max(...data, 1);
   const gap = 0.5;
   const barW = Math.max(
@@ -76,7 +84,9 @@ function renderBars(data: number[], quota?: number) {
             width={barW}
             height={h}
             fill={i === data.length - 1 ? BAR_FILL_LAST : BAR_FILL}
-          />
+          >
+            {tooltipFor && <title>{tooltipFor(v, i)}</title>}
+          </rect>
         );
       })}
     </>
