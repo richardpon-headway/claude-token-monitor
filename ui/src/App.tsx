@@ -70,9 +70,11 @@ export default function App() {
           <Tile
             label="today (local)"
             b={windows.today_local}
-            // No quota lines: bars are hourly but the floor is a daily
-            // budget — comparing a single hour to a day is a category
-            // mismatch. The QuotaBar above already shows today vs floor.
+            // Cumulative running-sum line — climbs across the day from 0
+            // to today's total, crossing the dashed quota lines at each
+            // multiple of WORKDAY_FLOOR.
+            sparkMode="cumulative"
+            quotaPerBucket={WORKDAY_FLOOR}
           />
           <Tile
             label="last 7d (local)"
@@ -140,13 +142,16 @@ function Tile({
   b,
   muted = false,
   quotaPerBucket,
+  sparkMode = "bars",
 }: {
   label: string;
   b: { output: number; input: number; messages: number; spark: number[] };
   muted?: boolean;
-  /** Per-bar quota for the dashed reference lines. e.g. WORKDAY_FLOOR
-   *  for daily bars, WORKDAY_FLOOR/24 for the hourly today bars. */
+  /** Per-bar quota for the dashed reference lines. */
   quotaPerBucket?: number;
+  /** "bars" (default) for per-bucket bars; "cumulative" for a rising
+   *  area chart of running sums. */
+  sparkMode?: "bars" | "cumulative";
 }) {
   return (
     <div
@@ -157,6 +162,7 @@ function Tile({
       {b.spark.length > 0 && (
         <Sparkline
           data={b.spark}
+          mode={sparkMode}
           quota={quotaPerBucket}
           className="absolute inset-1 pointer-events-none"
         />

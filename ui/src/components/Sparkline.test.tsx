@@ -41,4 +41,24 @@ describe("Sparkline", () => {
     const svg = container.querySelector("svg");
     expect(svg?.getAttribute("class")).toContain("absolute");
   });
+
+  it("cumulative mode renders an area path instead of rects", () => {
+    const { container } = render(
+      <Sparkline data={[10, 10, 10]} mode="cumulative" />,
+    );
+    expect(container.querySelectorAll("rect").length).toBe(0);
+    expect(container.querySelectorAll("path").length).toBe(2); // area + line
+  });
+
+  it("draws quota reference lines at integer multiples within the y-range", () => {
+    // max value 250, quota 100 -> lines at 100 and 200 (within [0, 250])
+    const { container } = render(<Sparkline data={[250]} quota={100} />);
+    expect(container.querySelectorAll("line").length).toBe(2);
+  });
+
+  it("caps quota lines at 8 to avoid stripe clutter", () => {
+    // max value 1000, quota 1 -> would naively draw 1000 lines
+    const { container } = render(<Sparkline data={[1000]} quota={1} />);
+    expect(container.querySelectorAll("line").length).toBe(8);
+  });
 });
