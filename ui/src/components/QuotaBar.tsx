@@ -45,16 +45,21 @@ export function QuotaBar({ todayOutput }: { todayOutput: number }) {
           <span className={pctColor}>({pct.toFixed(0)}%)</span>
         </span>
       </div>
-      <div className="relative h-1.5 w-full rounded-full bg-zinc-800 overflow-hidden">
-        <div
-          className={`h-full transition-all ${color}`}
-          style={{ width: `${barWidth}%` }}
-        />
+      <div className="relative h-1.5 w-full">
+        {/* track + colored bar — rounded ends, clips overflow */}
+        <div className="absolute inset-0 rounded-full bg-zinc-800 overflow-hidden">
+          <div
+            className={`h-full transition-all ${color}`}
+            style={{ width: `${barWidth}%` }}
+          />
+        </div>
+        {/* tick marks — 2px wide, extend 3px above and below the track
+            so they read as deliberate quota markers, not edges of the bar */}
         {ticks.map((leftPct, i) => (
           <div
             key={i}
-            className="absolute top-0 bottom-0 w-px bg-zinc-200/40"
-            style={{ left: `${leftPct}%` }}
+            className="absolute w-0.5 -translate-x-1/2 bg-zinc-100/70"
+            style={{ left: `${leftPct}%`, top: -3, bottom: -3 }}
             aria-hidden
           />
         ))}
