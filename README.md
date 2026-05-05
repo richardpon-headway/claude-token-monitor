@@ -55,18 +55,10 @@ older ones out. You can extend that via `~/.claude/settings.json`:
 
 Bump it to 90, 180, 365, or whatever makes sense — older transcripts will
 stick around in `~/.claude/projects/` and show up in the daemon's longer
-windows. Then tell the daemon to scan that far back via the
-`CLAUDE_TOKEN_MONITOR_HISTORY_DAYS` env var (defaults to 35 days, matching
-Claude's 30-day default + a 5-day buffer):
-
-```bash
-CLAUDE_TOKEN_MONITOR_HISTORY_DAYS=365 make run
-```
-
-The 30-day window in the UI represents the longest tile / chart range
-shipped today; with longer retention the daemon has more accurate
-per-session/per-topic context for queries that fall inside it (e.g. when
-a 30-day window ends on a session that started 45 days ago).
+windows. The daemon scans the last **365 days** at startup (no env var
+needed), so anything you retain shows up automatically. Startup takes a
+few seconds for a year of transcripts; after that, watchdog handles new
+data incrementally.
 
 ## API
 
@@ -94,13 +86,10 @@ ongoing-usage drift between snapshots).
 
 ## Configuration
 
-All knobs are env vars:
-
 | Variable | Default | Purpose |
 |---|---|---|
 | `CLAUDE_TOKEN_MONITOR_HOST` | `127.0.0.1` | bind address — keep on loopback unless you know what you're doing |
 | `CLAUDE_TOKEN_MONITOR_PORT` | `47821` | HTTP / SSE port |
-| `CLAUDE_TOKEN_MONITOR_HISTORY_DAYS` | `35` | how many days back to scan `~/.claude/projects/` at startup |
 
 Caches:
 

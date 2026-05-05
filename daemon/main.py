@@ -33,11 +33,12 @@ STATIC_DIR = pathlib.Path(__file__).parent / "static"
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 47821
-# How many days back to scan ~/.claude/projects/ at startup. Defaults to 35
-# (Claude Code's default cleanupPeriodDays is 30 + 5-day buffer). Users who
-# raise cleanupPeriodDays in ~/.claude/settings.json (e.g. 180, 365) should
-# raise this too to see the full history they've retained.
-DEFAULT_HISTORY_DAYS = 35
+# How many days back to scan ~/.claude/projects/ at startup. Set well above
+# Claude Code's default cleanupPeriodDays (30) so we surface the full
+# history when users have bumped retention to 180 / 365 in
+# ~/.claude/settings.json. The startup cost (~few seconds for 600+ files)
+# is fine for a one-shot scan; watchdog handles incremental updates after.
+HISTORY_DAYS = 365
 
 
 def _load_cache_into(rollup: Rollup) -> int:
@@ -57,14 +58,11 @@ def _load_cache_into(rollup: Rollup) -> int:
 def build_app() -> tuple[FastAPI, Watcher]:
     rollup = Rollup()
 
-    history_days = int(
-        os.environ.get("CLAUDE_TOKEN_MONITOR_HISTORY_DAYS", DEFAULT_HISTORY_DAYS)
-    )
     print(
-        f"scanning {PROJECTS_DIR} (last {history_days} days) ...",
+        f"scanning {PROJECTS_DIR} (last {HISTORY_DAYS} days) ...",
         file=sys.stderr,
     )
-    n_files = initial_scan(rollup, PROJECTS_DIR, mtime_cutoff_days=history_days)
+    n_files = initial_scan(rollup, PROJECTS_DIR, mtime_cutoff_days=HISTORY_DAYS)
     n_cache = _load_cache_into(rollup)
     print(
         f"  ingested {n_files} files, {len(rollup.by_session)} sessions, "
