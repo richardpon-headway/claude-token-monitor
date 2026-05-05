@@ -28,6 +28,34 @@ function formatTodayDate(tz: Tz): string {
   return new Intl.DateTimeFormat(undefined, opts).format(new Date());
 }
 
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/** Tooltip generator for the today tile's 24 hourly bars. */
+function hourlyTooltip(v: number, i: number): string {
+  return `${pad(i)}:00 — ${v.toLocaleString()} output tokens`;
+}
+
+/** Tooltip generator for daily-bar tiles. `endOffset` is how many days
+ *  back from today the rightmost bar represents (0 for local windows
+ *  that include today; 1 for UTC windows that exclude today_utc). */
+function dailyTooltipMaker(
+  days: number,
+  endOffset: number,
+  tz: Tz,
+): (v: number, i: number) => string {
+  return (v, i) => {
+    const d = new Date();
+    if (tz === "utc") {
+      d.setUTCHours(0, 0, 0, 0);
+      d.setUTCDate(d.getUTCDate() - endOffset - (days - 1 - i));
+      return `${d.getUTCMonth() + 1}/${d.getUTCDate()} — ${v.toLocaleString()} output tokens`;
+    }
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - endOffset - (days - 1 - i));
+    return `${d.getMonth() + 1}/${d.getDate()} — ${v.toLocaleString()} output tokens`;
+  };
+}
+
 export default function App() {
   const { refreshKey, live } = useUsageStream();
   const [groupBy, setGroupBy] = useState<GroupBy>("topic");
@@ -92,17 +120,20 @@ export default function App() {
           <Tile
             label={`today · ${formatTodayDate(tz)}`}
             b={tz === "utc" ? windows.today_utc : windows.today_local}
+            tooltipFor={hourlyTooltip}
             // Hourly bars only — no quota lines on a single-day window.
           />
           <Tile
             label="last 7d"
             b={tz === "utc" ? windows.last_7d_utc : windows.last_7d_local}
             quotaPerBucket={WORKDAY_FLOOR}
+            tooltipFor={dailyTooltipMaker(7, tz === "utc" ? 1 : 0, tz)}
           />
           <Tile
             label="last 30d"
             b={tz === "utc" ? windows.last_30d_utc : windows.last_30d_local}
             quotaPerBucket={WORKDAY_FLOOR}
+            tooltipFor={dailyTooltipMaker(30, tz === "utc" ? 1 : 0, tz)}
           />
         </section>
       )}
@@ -145,6 +176,7 @@ function Tile({
   muted = false,
   quotaPerBucket,
   sparkMode = "bars",
+  tooltipFor,
 }: {
   label: string;
   b: { output: number; input: number; messages: number; spark: number[] };
@@ -154,6 +186,8 @@ function Tile({
   /** "bars" (default) for per-bucket bars; "cumulative" for a rising
    *  area chart of running sums. */
   sparkMode?: "bars" | "cumulative";
+  /** Per-bar hover tooltip text. */
+  tooltipFor?: (value: number, index: number) => string;
 }) {
   return (
     <div
@@ -166,7 +200,10 @@ function Tile({
           data={b.spark}
           mode={sparkMode}
           quota={quotaPerBucket}
-          className="absolute inset-1 pointer-events-none"
+          tooltipFor={tooltipFor}
+          // Drop pointer-events:none so hovering a bar surfaces the
+          // browser's native <title> tooltip.
+          className="absolute inset-1"
         />
       )}
       <div className="relative">
