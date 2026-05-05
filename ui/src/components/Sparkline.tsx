@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 /** Tiny SVG sparkline. Two modes:
  *
  *  - mode="bars" (default) — one bar per data point. Older bars at low
@@ -34,27 +36,52 @@ export function Sparkline({
   data: number[];
   mode?: "bars" | "cumulative";
   quota?: number;
-  /** Called per bar to produce a hover tooltip string (rendered as a
-   *  native SVG <title> child — free browser tooltip, no JS state). */
+  /** Called per bar to produce a hover tooltip string. Rendered as a
+   *  styled overlay (matches the activity-chart tooltip), not a native
+   *  <title>, so it appears instantly with no OS delay. */
   tooltipFor?: (value: number, index: number) => string;
   className?: string;
 }) {
+  const [hovered, setHovered] = useState<number | null>(null);
   if (data.length === 0) return null;
 
+  // Map the cursor's x-position within the SVG to a bar index. We use
+  // mousemove on the SVG (instead of per-rect onMouseEnter) so narrow
+  // bars don't require pixel-perfect aim.
+  const handleMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const idx = Math.min(
+      data.length - 1,
+      Math.max(0, Math.floor((x / rect.width) * data.length)),
+    );
+    setHovered(idx);
+  };
+
   return (
-    <svg
-      width="100%"
-      height="100%"
-      viewBox={`0 0 ${VB_WIDTH} ${VB_HEIGHT}`}
-      role="img"
-      aria-label="trend"
-      preserveAspectRatio="none"
-      className={className}
-    >
-      {mode === "bars"
-        ? renderBars(data, quota, tooltipFor)
-        : renderCumulative(data, quota)}
-    </svg>
+    <div className={className} style={{ position: "relative" }}>
+      <svg
+        width="100%"
+        height="100%"
+        viewBox={`0 0 ${VB_WIDTH} ${VB_HEIGHT}`}
+        role="img"
+        aria-label="trend"
+        preserveAspectRatio="none"
+        onMouseMove={tooltipFor ? handleMove : undefined}
+        onMouseLeave={() => setHovered(null)}
+      >
+        {mode === "bars"
+          ? renderBars(data, quota, hovered)
+          : renderCumulative(data, quota)}
+      </svg>
+      {tooltipFor && hovered !== null && (
+        <div
+          className="absolute top-1 right-1 rounded border border-zinc-700 bg-zinc-950/90 px-2 py-1 text-xs text-zinc-200 pointer-events-none whitespace-nowrap shadow-lg"
+        >
+          {tooltipFor(data[hovered], hovered)}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -63,7 +90,7 @@ export function Sparkline({
 function renderBars(
   data: number[],
   quota?: number,
-  tooltipFor?: (value: number, index: number) => string,
+  hovered?: number | null,
 ) {
   const max = Math.max(...data, 1);
   const gap = 0.5;
@@ -76,6 +103,10 @@ function renderBars(
       {quotaLines(max, quota)}
       {data.map((v, i) => {
         const h = Math.max((v / max) * VB_HEIGHT, v > 0 ? 1 : 0);
+        // Hovered bar gets the brighter "last bar" emphasis fill so the
+        // user can see which bar the tooltip refers to.
+        const isHighlighted =
+          (hovered === i) || (hovered == null && i === data.length - 1);
         return (
           <rect
             key={i}
@@ -83,10 +114,8 @@ function renderBars(
             y={VB_HEIGHT - h}
             width={barW}
             height={h}
-            fill={i === data.length - 1 ? BAR_FILL_LAST : BAR_FILL}
-          >
-            {tooltipFor && <title>{tooltipFor(v, i)}</title>}
-          </rect>
+            fill={isHighlighted ? BAR_FILL_LAST : BAR_FILL}
+          />
         );
       })}
     </>
