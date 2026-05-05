@@ -60,6 +60,12 @@ needed), so anything you retain shows up automatically. Startup takes a
 few seconds for a year of transcripts; after that, watchdog handles new
 data incrementally.
 
+> [!TIP]
+> Don't want to hand-edit the JSON? Just ask your local Claude Code
+> instance: *"set my Claude Code transcript retention to 365 days."*
+> Mention the actual key name — `cleanupPeriodDays` — since the setting
+> isn't called "retention" or anything obvious in `~/.claude/settings.json`.
+
 ## API
 
 Direct calls if you want to build something on top, or for debugging:
