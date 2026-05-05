@@ -58,8 +58,15 @@ export function Sparkline({
     setHovered(idx);
   };
 
+  // Wrapper is positioned via the caller's `className` (e.g.
+  // 'absolute inset-1' from the Tile), which doubles as the
+  // containing block for the tooltip overlay. Don't add inline
+  // `position: relative` — it would override the caller's class
+  // and collapse the wrapper to its content size, which makes the
+  // SVG fall back to its 1:1 viewBox aspect ratio and blows up
+  // the tile height.
   return (
-    <div className={className} style={{ position: "relative" }}>
+    <div className={className}>
       <svg
         width="100%"
         height="100%"
