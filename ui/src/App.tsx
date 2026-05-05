@@ -39,7 +39,7 @@ export default function App() {
     refreshKey,
   );
   const { data: groups, error: groupsError } = useUsage<GroupsResponse>(
-    `/api/usage/groups?by=${groupBy}`,
+    `/api/usage/groups?by=${groupBy}&range=${range}`,
     refreshKey,
   );
   const { data: ts } = useUsage<TimeseriesResponse>(
