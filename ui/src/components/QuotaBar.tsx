@@ -53,13 +53,14 @@ export function QuotaBar({ todayOutput }: { todayOutput: number }) {
             style={{ width: `${barWidth}%` }}
           />
         </div>
-        {/* tick marks — 2px wide, extend 3px above and below the track
-            so they read as deliberate quota markers, not edges of the bar */}
+        {/* tick marks — 1px wide, extend 9px above and below the 6px
+            track (total ~24px tall) so they read clearly as deliberate
+            quota markers and stand well above the bar. */}
         {ticks.map((leftPct, i) => (
           <div
             key={i}
-            className="absolute w-0.5 -translate-x-1/2 bg-zinc-100/70"
-            style={{ left: `${leftPct}%`, top: -3, bottom: -3 }}
+            className="absolute w-px -translate-x-1/2 bg-zinc-100/70"
+            style={{ left: `${leftPct}%`, top: -9, bottom: -9 }}
             aria-hidden
           />
         ))}
