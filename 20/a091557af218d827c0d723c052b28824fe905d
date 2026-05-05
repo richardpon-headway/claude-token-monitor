@@ -1,0 +1,26 @@
+ui/src/App.tsx
+  d65ea34b6f61fd51 73-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "20a091557af218d827c0d723c052b28824fe905d",
+  "prompts": {
+    "d65ea34b6f61fd51": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9a7f6113-acbc-4a6a-9c47-d596851dfae0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Richard Pon",
+      "messages": [],
+      "total_additions": 266,
+      "total_deletions": 272,
+      "accepted_lines": 446,
+      "overriden_lines": 0,
+      "custom_attributes": {
+        "runtime": "local"
+      }
+    }
+  }
+}
