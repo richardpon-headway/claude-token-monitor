@@ -302,6 +302,43 @@ def test_windowed_groups_session_segments_are_per_window(make_session):
     assert s["topic_id"] == "COR-119"
 
 
+def test_windowed_groups_session_overrides_reattribute_unclassified(make_session):
+    """When session_overrides supplies a ticket for a session, the
+    session's UNCLASSIFIED records get re-attributed; records that were
+    already on a ticket-named branch are unchanged."""
+    import datetime as _dt
+    projects_dir, write, record, _now = make_session
+    fresh = _dt.datetime.now(_dt.timezone.utc).isoformat().replace("+00:00", "Z")
+    path = write("p", "s", [
+        # half on a ticket-named branch (already tagged COR-144)
+        record(msg_id="m1", timestamp=fresh, output=100,
+               git_branch="feat/COR-144"),
+        # half on main (unclassified by default)
+        record(msg_id="m2", timestamp=fresh, output=50, git_branch="main"),
+    ])
+    r = Rollup()
+    _ingest(r, projects_dir, path)
+
+    # No override -> COR-144 (100) and an unclassified row (50)
+    rows = r.windowed_groups("topic", range_minutes=60)
+    by_topic = {x["topic_id"]: x for x in rows}
+    assert by_topic["COR-144"]["output"] == 100
+    unclassified_keys = [k for k in by_topic if k.startswith("unclassified:")]
+    assert len(unclassified_keys) == 1
+    assert by_topic[unclassified_keys[0]]["output"] == 50
+
+    # With override -> the unclassified portion goes to COR-119,
+    # the gitBranch-tagged portion stays as COR-144.
+    rows2 = r.windowed_groups(
+        "topic", range_minutes=60,
+        session_overrides={"s": "COR-119"},
+    )
+    by_topic2 = {x["topic_id"]: x for x in rows2}
+    assert by_topic2["COR-144"]["output"] == 100
+    assert by_topic2["COR-119"]["output"] == 50
+    assert not any(k.startswith("unclassified:") for k in by_topic2)
+
+
 def test_windowed_groups_project_distinct_session_count(make_session):
     """Multiple sessions hitting the same project should count once each
     in the project row's `sessions` field."""

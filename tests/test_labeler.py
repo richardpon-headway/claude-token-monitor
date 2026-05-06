@@ -217,9 +217,18 @@ class _FakeTopic:
 
 
 class _FakeSession:
-    def __init__(self, segments, early_user_prompts):
+    def __init__(
+        self, segments, early_user_prompts,
+        *, session_id="fake", topic_id=None, last_at=None, output=0,
+    ):
         self.segments = segments
         self.early_user_prompts = early_user_prompts
+        self.session_id = session_id
+        # Default the dominant topic to the first segment key so existing
+        # tests that don't set this work transparently.
+        self.topic_id = topic_id or (next(iter(segments), None) if segments else None)
+        self.last_at = last_at
+        self.output = output
 
 
 class _FakeRollup:
