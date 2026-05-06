@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from daemon.parser import parse_file
+from daemon.parser import EARLY_PROMPT_CAP, parse_file
 
 
 def test_dedup_on_message_id(make_session):
@@ -43,13 +43,13 @@ def test_skips_records_with_no_usage(make_session):
     assert r.records[0].message_id == "m2"
 
 
-def test_early_user_prompts_capped_at_5(make_session):
+def test_early_user_prompts_capped(make_session):
     projects_dir, write, record, now = make_session
-    prompts = [f"prompt {i}" for i in range(10)]
+    prompts = [f"prompt {i}" for i in range(EARLY_PROMPT_CAP + 5)]
     records = [record(role="user", text=p) for p in prompts]
     path = write("p", "s", records)
     r = parse_file(path, projects_dir=projects_dir, seen_message_ids=set())
-    assert r.early_user_prompts == prompts[:5]
+    assert r.early_user_prompts == prompts[:EARLY_PROMPT_CAP]
 
 
 def test_early_user_prompts_extracts_from_content_blocks(make_session):

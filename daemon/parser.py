@@ -15,8 +15,8 @@ import json
 import pathlib
 from dataclasses import dataclass, field
 
-EARLY_PROMPT_CAP = 5
-PROMPT_CHAR_CAP = 1000
+EARLY_PROMPT_CAP = 20
+PROMPT_CHAR_CAP = 4000
 
 
 @dataclass

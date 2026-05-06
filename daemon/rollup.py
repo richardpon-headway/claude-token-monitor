@@ -21,7 +21,7 @@ import datetime
 import threading
 from dataclasses import dataclass, field, replace
 
-from daemon.parser import ParseResult, UsageRecord
+from daemon.parser import EARLY_PROMPT_CAP, ParseResult, UsageRecord
 
 LOCAL_TZ = datetime.datetime.now().astimezone().tzinfo
 
@@ -160,8 +160,9 @@ class Rollup:
             if result.last_at is not None:
                 if session.last_at is None or result.last_at > session.last_at:
                     session.last_at = result.last_at
-            if result.early_user_prompts and len(session.early_user_prompts) < 5:
-                room = 5 - len(session.early_user_prompts)
+            if (result.early_user_prompts
+                    and len(session.early_user_prompts) < EARLY_PROMPT_CAP):
+                room = EARLY_PROMPT_CAP - len(session.early_user_prompts)
                 session.early_user_prompts.extend(result.early_user_prompts[:room])
 
             for rec in result.records:
