@@ -101,7 +101,19 @@ def make_router(
             "1h": 60, "4h": 240, "1d": 1440,
             "7d": 7 * 1440, "30d": 30 * 1440,
         }[window]
-        rows = [_jsonable(r) for r in rollup.windowed_groups(by, range_minutes)]
+        # Build a session_id -> override_ticket map from the labeler's
+        # classifications so unclassified records get re-attributed.
+        session_overrides: dict[str, str] = {}
+        if labeler is not None:
+            for sid, c in labeler.all_classifications().items():
+                if c.ticket:
+                    session_overrides[sid] = c.ticket
+        rows = [
+            _jsonable(r)
+            for r in rollup.windowed_groups(
+                by, range_minutes, session_overrides=session_overrides
+            )
+        ]
         if by == "topic":
             for r in rows:
                 r["label"] = topic_display_label(r["topic_id"])

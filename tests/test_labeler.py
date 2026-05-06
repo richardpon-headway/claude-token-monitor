@@ -217,9 +217,18 @@ class _FakeTopic:
 
 
 class _FakeSession:
-    def __init__(self, segments, early_user_prompts):
+    def __init__(
+        self, segments, early_user_prompts,
+        *, session_id="fake", topic_id=None, last_at=None, output=0,
+    ):
         self.segments = segments
         self.early_user_prompts = early_user_prompts
+        self.session_id = session_id
+        # Default the dominant topic to the first segment key so existing
+        # tests that don't set this work transparently.
+        self.topic_id = topic_id or (next(iter(segments), None) if segments else None)
+        self.last_at = last_at
+        self.output = output
 
 
 class _FakeRollup:
@@ -368,6 +377,126 @@ def test_labeler_tick_resync_keeps_newer_inmem_when_disk_is_stale(tmp_path, monk
     )
     lab.tick()
     assert lab.get_summary("COR-144") == "new_inmem"
+
+
+# --- classify_session -----------------------------------------------------
+
+def _classify_run(stdout: str):
+    """Helper: returns a fake_run that always returns the given stdout."""
+    def fake_run(argv, **kwargs):
+        return FakeProc(stdout=stdout)
+    return fake_run
+
+
+def test_classify_session_parses_json_and_returns_ticket(monkeypatch):
+    fake_resp = '{"ticket": "COR-144", "summary": "webhook rewrite", "confidence": 0.9}'
+    monkeypatch.setattr(subprocess, "run", _classify_run(fake_resp))
+    result = labeler.classify_session(
+        session_id="s1",
+        prompts_sample=["fix the webhook handler"],
+        candidate_tickets=[("COR-144", "IA call webhook")],
+    )
+    assert result is not None
+    assert result.ticket == "COR-144"
+    assert result.summary == "webhook rewrite"
+    assert result.confidence == 0.9
+
+
+def test_classify_session_drops_ticket_below_confidence_threshold(monkeypatch):
+    fake_resp = '{"ticket": "COR-144", "summary": "maybe webhook", "confidence": 0.5}'
+    monkeypatch.setattr(subprocess, "run", _classify_run(fake_resp))
+    result = labeler.classify_session(
+        session_id="s1",
+        prompts_sample=["something vague"],
+        candidate_tickets=[("COR-144", None)],
+    )
+    assert result is not None
+    # confidence < default 0.8 -> ticket is dropped, summary kept
+    assert result.ticket is None
+    assert result.summary == "maybe webhook"
+    assert result.confidence == 0.5
+
+
+def test_classify_session_handles_null_ticket(monkeypatch):
+    fake_resp = '{"ticket": null, "summary": "exploring atlas auth", "confidence": 0.95}'
+    monkeypatch.setattr(subprocess, "run", _classify_run(fake_resp))
+    result = labeler.classify_session(
+        session_id="s1",
+        prompts_sample=["how does atlas auth work"],
+        candidate_tickets=[("COR-144", None)],
+    )
+    assert result is not None
+    assert result.ticket is None
+    assert result.summary == "exploring atlas auth"
+
+
+def test_classify_session_extracts_json_from_messy_output(monkeypatch):
+    """LLM might wrap JSON in markdown fences or add prose. Pick out the
+    first {...} block."""
+    messy = (
+        "Sure, here's the classification:\n"
+        '```json\n{"ticket": "COR-144", "summary": "the webhook", "confidence": 0.85}\n```'
+    )
+    monkeypatch.setattr(subprocess, "run", _classify_run(messy))
+    result = labeler.classify_session(
+        session_id="s1",
+        prompts_sample=["webhook stuff"],
+        candidate_tickets=[("COR-144", None)],
+    )
+    assert result is not None
+    assert result.ticket == "COR-144"
+
+
+def test_classify_session_returns_none_on_malformed_json(monkeypatch):
+    monkeypatch.setattr(subprocess, "run", _classify_run("not json at all"))
+    assert labeler.classify_session(
+        session_id="s1",
+        prompts_sample=["x"],
+        candidate_tickets=[],
+    ) is None
+
+
+def test_classify_session_returns_none_on_empty_prompts(monkeypatch):
+    """No prompts -> no LLM call (saves tokens)."""
+    called: list = []
+    def fake_run(argv, **kwargs):
+        called.append(argv)
+        return FakeProc(stdout="should never be used")
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    result = labeler.classify_session(
+        session_id="s1",
+        prompts_sample=[],
+        candidate_tickets=[("COR-144", None)],
+    )
+    assert result is None
+    assert called == []
+
+
+def test_classify_session_returns_none_on_subprocess_failure(monkeypatch):
+    def fake_run(argv, **kwargs):
+        raise FileNotFoundError("claude")
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    assert labeler.classify_session(
+        session_id="s1",
+        prompts_sample=["x"],
+        candidate_tickets=[],
+    ) is None
+
+
+def test_classify_session_records_output_at_classification(monkeypatch):
+    """output_at_classification is the session's total output at call
+    time — used by the rollup's B refresh policy (re-classify when
+    output >= 2x last classified value)."""
+    fake_resp = '{"ticket": null, "summary": "x", "confidence": 0.9}'
+    monkeypatch.setattr(subprocess, "run", _classify_run(fake_resp))
+    result = labeler.classify_session(
+        session_id="s1",
+        prompts_sample=["x"],
+        candidate_tickets=[],
+        output_at_classification=12345,
+    )
+    assert result is not None
+    assert result.output_at_classification == 12345
 
 
 def test_labeler_start_stop_lifecycle(tmp_path, monkeypatch):
