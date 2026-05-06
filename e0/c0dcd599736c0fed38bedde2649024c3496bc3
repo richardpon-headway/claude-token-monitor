@@ -1,0 +1,28 @@
+daemon/parser.py
+  s_8904db346b962b::t_e831ca10e93aaa 18-19
+daemon/rollup.py
+  s_8904db346b962b::t_5de76b88d83c75 24
+  s_8904db346b962b::t_b443c8c9321159 163-165
+tests/test_parser.py
+  s_8904db346b962b::t_0ad65d64b116e6 3
+  s_8904db346b962b::t_0cbf032ff8d5ea 46,48,52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "e0c0dcd599736c0fed38bedde2649024c3496bc3",
+  "prompts": {},
+  "sessions": {
+    "s_8904db346b962b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "915d1f16-81e8-40c1-ba3d-4da4a116d589",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Richard Pon <richard.pon@findheadway.com>",
+      "custom_attributes": {
+        "runtime": "local"
+      }
+    }
+  }
+}
