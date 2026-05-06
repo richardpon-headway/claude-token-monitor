@@ -177,6 +177,136 @@ def summarize_topic(topic_id: str, prompts_sample: list[str]) -> str | None:
     return fetch_claude_summary(topic_id, prompts_sample)
 
 
+# --- session classification (LLM-based unclassified resolution) -----------
+
+
+@dataclass
+class SessionClassification:
+    """Result of classifying an unclassified session via claude -p.
+
+    `ticket` is set only when the LLM is confident (>= 0.8) the session
+    is about that ticket. `summary` is always populated when the call
+    succeeds. `output_at_classification` is the session's total output
+    tokens at the time we classified — refresh policy compares this
+    against current totals to decide if we re-classify (B: refresh on
+    >= 2x growth)."""
+    ticket: str | None
+    summary: str | None
+    confidence: float
+    output_at_classification: int
+
+
+def classify_session(
+    session_id: str,
+    prompts_sample: list[str],
+    candidate_tickets: list[tuple[str, str | None]],
+    assistant_text_sample: str | None = None,
+    *,
+    output_at_classification: int = 0,
+    confidence_threshold: float = 0.8,
+) -> SessionClassification | None:
+    """Ask `claude -p` to classify a session into one of the candidate
+    tickets, or return a 5-10 word summary if no ticket fits.
+
+    `candidate_tickets` is a list of (ticket_id, jira_summary | None)
+    pairs — the LLM matches against IDs AND summaries when available.
+    `assistant_text_sample` is an optional snippet from the first
+    assistant turn for sessions where the user prompts are vague.
+
+    Returns None on any subprocess failure (missing CLI, timeout,
+    malformed JSON, etc.) so the caller leaves the cache unset and
+    retries on the next tick.
+    """
+    if not prompts_sample:
+        return None
+
+    ticket_lines: list[str] = []
+    for tid, summary in candidate_tickets:
+        if summary:
+            ticket_lines.append(f"  - {tid}: {summary}")
+        else:
+            ticket_lines.append(f"  - {tid}")
+    candidates_block = "\n".join(ticket_lines) if ticket_lines else "  (none known)"
+
+    prompt_block = "\n".join(
+        f"  {i+1}. {p[:500]}" for i, p in enumerate(prompts_sample[:5])
+    )
+    assistant_block = (
+        f"\n\nA snippet of the first assistant turn:\n{assistant_text_sample[:500]}"
+        if assistant_text_sample
+        else ""
+    )
+
+    instruction = (
+        "You're classifying a Claude Code session by which Jira ticket "
+        "it's most likely about. Below is the candidate ticket list "
+        "(with summaries when available) and the user's first prompts.\n\n"
+        f"Candidate tickets:\n{candidates_block}\n\n"
+        f"User's first prompts:\n{prompt_block}"
+        f"{assistant_block}\n\n"
+        "Reply ONLY with a JSON object — no other text — in this shape:\n"
+        '{"ticket": "COR-144" | null, "summary": "5-10 word description", "confidence": 0.0-1.0}\n\n'
+        "Rules:\n"
+        f"- Only set 'ticket' if you're at least {confidence_threshold} confident "
+        "the session matches one of the candidates.\n"
+        "- 'summary' should describe what the session was about, regardless of ticket match.\n"
+        "- 'confidence' is your self-reported confidence in the ticket assignment "
+        "(if ticket is null, confidence applies to that judgement)."
+    )
+
+    try:
+        r = subprocess.run(
+            ["claude", "-p", instruction],
+            capture_output=True,
+            text=True,
+            timeout=CLAUDE_TIMEOUT_SEC,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return None
+    if r.returncode != 0:
+        return None
+
+    raw = r.stdout.strip()
+    if not raw:
+        return None
+    # The LLM may wrap JSON in ```json``` fences or add stray text. Try
+    # to find the first {...} block.
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        return None
+    try:
+        data = json.loads(raw[start : end + 1])
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+    ticket = data.get("ticket")
+    if not isinstance(ticket, str) or not TICKET_KEY_RE.match(ticket):
+        ticket = None
+    summary = data.get("summary")
+    if not isinstance(summary, str):
+        summary = None
+    try:
+        confidence = float(data.get("confidence", 0.0))
+    except (TypeError, ValueError):
+        confidence = 0.0
+
+    # Apply the threshold: only return a ticket assignment if confident.
+    if ticket is not None and confidence < confidence_threshold:
+        ticket = None
+
+    # Don't fail outright if the candidate list didn't include the
+    # returned ticket — the LLM might pick a real Jira ticket that
+    # just wasn't in the snapshot. Trust the regex-validated value.
+
+    return SessionClassification(
+        ticket=ticket,
+        summary=summary,
+        confidence=confidence,
+        output_at_classification=output_at_classification,
+    )
+
+
 # --- background labeler ---------------------------------------------------
 
 
