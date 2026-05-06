@@ -109,9 +109,12 @@ def test_assigns_topic_per_record_from_branch(make_session):
     assert [rec.topic_id for rec in r.records] == ["COR-144", "COR-119"]
 
 
-def test_assigns_topic_from_user_prompt_when_branch_lacks_ticket(make_session):
-    """When the branch has no ticket, assistant tokens after a user prompt
-    mentioning a ticket should be attributed to that ticket."""
+def test_branch_without_ticket_buckets_by_branch_not_by_prompt_history(make_session):
+    """Old behavior: a prompt mentioning COR-X tagged every subsequent
+    record as COR-X via prompt-history fallback. New behavior: prompt
+    history is dropped entirely, so records on a non-ticket branch land
+    in 'unclassified:<project>#<branch>' regardless of what was said
+    in prompts."""
     projects_dir, write, record, now = make_session
     path = write("p", "s", [
         record(msg_id="m1", timestamp=now(), output=10, git_branch="main"),
@@ -122,37 +125,8 @@ def test_assigns_topic_from_user_prompt_when_branch_lacks_ticket(make_session):
     ])
     r = parse_file(path, projects_dir=projects_dir, seen_message_ids=set())
     assert [rec.topic_id for rec in r.records] == [
-        "unclassified:p", "COR-144", "COR-119",
+        "unclassified:p#main", "unclassified:p#main", "unclassified:p#main",
     ]
-
-
-def test_current_prompt_ticket_carries_across_incremental_parses(make_session):
-    """Rollup persists current_prompt_ticket between incremental reads of the
-    same file. Verify the parser threads it through correctly."""
-    projects_dir, write, record, now = make_session
-    path = write("p", "s", [
-        record(role="user", text="working on COR-144"),
-        record(msg_id="m1", timestamp=now(), output=10, git_branch="main"),
-    ])
-    r1 = parse_file(path, projects_dir=projects_dir, seen_message_ids=set())
-    assert r1.current_prompt_ticket == "COR-144"
-    assert r1.records[0].topic_id == "COR-144"
-
-    # Append a new assistant turn (no new user prompt) and re-parse from offset
-    import json
-    with path.open("a") as f:
-        f.write(json.dumps({
-            "message": {"id": "m2", "role": "assistant",
-                        "usage": {"input_tokens": 0, "output_tokens": 50}},
-            "timestamp": now(),
-            "gitBranch": "main",
-        }) + "\n")
-    r2 = parse_file(
-        path, projects_dir=projects_dir, seen_message_ids={"m1"},
-        start_offset=r1.bytes_read,
-        current_prompt_ticket=r1.current_prompt_ticket,
-    )
-    assert r2.records[0].topic_id == "COR-144"  # carried forward
 
 
 def test_captures_git_branch_per_record(make_session):
