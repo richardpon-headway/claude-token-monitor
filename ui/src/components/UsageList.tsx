@@ -43,13 +43,39 @@ function shortTopic(t: string): string {
 
 /** Render a topic-group row's label + optional summary inline. */
 function renderTopicCell(r: TopicRow): React.ReactNode {
+  const tooltip = formatPromptsTooltip(r.sample_prompts);
   return (
-    <span>
-      <span>{r.label}</span>
+    <span title={tooltip}>
+      <span className={tooltip ? "underline decoration-dotted decoration-zinc-700 underline-offset-4" : ""}>
+        {r.label}
+      </span>
       {r.summary && (
         <span className="text-zinc-500"> · {r.summary}</span>
       )}
     </span>
+  );
+}
+
+function renderProjectCell(r: ProjectRow): React.ReactNode {
+  const tooltip = formatPromptsTooltip(r.sample_prompts);
+  return (
+    <span
+      title={tooltip}
+      className={tooltip ? "underline decoration-dotted decoration-zinc-700 underline-offset-4" : ""}
+    >
+      {r.project}
+    </span>
+  );
+}
+
+/** Compose a multi-line title string for a cell tooltip. Empty string
+ *  means no tooltip — the title attribute is omitted in that case so
+ *  rows without sample prompts don't render a 'no value' tooltip. */
+function formatPromptsTooltip(prompts: string[] | undefined): string {
+  if (!prompts || prompts.length === 0) return "";
+  return (
+    "Recent prompts:\n" +
+    prompts.map((p) => `• ${p.slice(0, 200)}`).join("\n")
   );
 }
 
@@ -123,7 +149,7 @@ function projectColumns(): ColumnDef[] {
   return [
     {
       key: "project", label: "Project folder", align: "left",
-      render: (r) => isProjectRow(r) ? r.project : "",
+      render: (r) => isProjectRow(r) ? renderProjectCell(r) : "",
       sortVal: (r) => isProjectRow(r) ? r.project.toLowerCase() : "",
     },
     {

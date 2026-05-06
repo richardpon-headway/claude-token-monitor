@@ -44,15 +44,17 @@ def test_ingest_idempotent_on_replay(make_session):
     assert r.by_session["s1"].messages == 1
 
 
-def test_topic_assigned_from_prompt(make_session):
+def test_topic_assigned_from_branch(make_session):
+    """gitBranch is now the primary signal for the ticket. Prompt-history
+    fallback was dropped (it leaked attribution across context switches)."""
     projects_dir, write, record, now = make_session
     path = write("plain-project", "s1", [
-        record(role="user", text="please look into COR-144"),
-        record(msg_id="m1", timestamp=now(), output=100),
+        record(role="user", text="please look into the carrier autocomplete"),
+        record(msg_id="m1", timestamp=now(), output=100,
+               git_branch="feat/COR-144-foo"),
     ])
     r = Rollup()
     _ingest(r, projects_dir, path)
-    # Dominant topic recomputed from segments — only one segment, so it wins.
     assert r.by_session["s1"].topic_id == "COR-144"
     assert "COR-144" in r.by_session["s1"].segments
 
@@ -104,8 +106,9 @@ def test_topic_aggregates_from_segments_across_sessions(make_session):
     by_topic = {t.topic_id: t for t in r.snapshot_topics()}
     assert by_topic["COR-144"].output == 300  # 100 + 200
     assert by_topic["COR-144"].sessions == 2  # both sessions touched it
-    assert by_topic["unclassified:alpha"].output == 50
-    assert by_topic["unclassified:alpha"].sessions == 1
+    # Branch-scoped unclassified bucket — main branch, no ticket.
+    assert by_topic["unclassified:alpha#main"].output == 50
+    assert by_topic["unclassified:alpha#main"].sessions == 1
 
 
 def test_load_cache_days_does_not_overwrite_logs(make_session):
@@ -252,9 +255,10 @@ def test_windowed_groups_filters_by_timestamp(make_session):
     fresh = now_utc.isoformat().replace("+00:00", "Z")
     stale = (now_utc - _dt.timedelta(hours=2)).isoformat().replace("+00:00", "Z")
     path = write("p", "s", [
-        record(role="user", text="working on COR-144"),
-        record(msg_id="m_old", timestamp=stale, output=999),
-        record(msg_id="m_new", timestamp=fresh, output=42),
+        record(msg_id="m_old", timestamp=stale, output=999,
+               git_branch="feat/COR-144"),
+        record(msg_id="m_new", timestamp=fresh, output=42,
+               git_branch="feat/COR-144"),
     ])
     r = Rollup()
     _ingest(r, projects_dir, path)

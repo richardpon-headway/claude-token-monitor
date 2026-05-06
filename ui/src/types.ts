@@ -25,6 +25,7 @@ export interface ProjectRow {
   input: number;
   messages: number;
   last_at: string | null;
+  sample_prompts: string[];
 }
 
 export interface Segment {
@@ -56,6 +57,7 @@ export interface TopicRow {
   last_at: string | null;
   label: string;
   summary: string | null;
+  sample_prompts: string[];
 }
 
 export type GroupBy = "topic" | "session" | "project";

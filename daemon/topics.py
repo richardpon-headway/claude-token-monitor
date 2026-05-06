@@ -1,19 +1,18 @@
 """Heuristic topic assignment.
 
-Topics are Jira-style ticket IDs (e.g. COR-144) or 'unclassified:<project>'
-when no ticket can be found.
+Topics are Jira-style ticket IDs (e.g. COR-144), 'unclassified:<project>'
+(no branch info) or 'unclassified:<project>#<branch>' (branch-scoped
+unclassified bucket — keeps ad-hoc work in different branches from
+collapsing into one mega-row).
 
 Two entry points:
-  - assign_topic_for_record(git_branch, current_prompt_ticket, project)
-        Per-record resolver used by the parser. Priority order:
-        gitBranch → most recent user-prompt mention in this session →
-        project folder → unclassified. This is the resolver of record.
+  - assign_topic_for_record(git_branch, project)
+        Per-record resolver used by the parser. Priority:
+        gitBranch ticket > project folder ticket > unclassified.
+        Pure function, no state.
   - assign_topic(early_user_prompts, project)
-        Legacy session-level resolver. Still here for tests/backward-compat
-        but no longer used for primary attribution.
-
-Pure functions only — no state. Caller maintains "current_prompt_ticket"
-across records of the same session and passes it in.
+        Legacy session-level resolver. Kept for backward-compat tests
+        only — no longer used for primary attribution.
 """
 from __future__ import annotations
 
@@ -37,23 +36,32 @@ def extract_tickets(text: str) -> list[str]:
 
 def assign_topic_for_record(
     git_branch: str | None,
-    current_prompt_ticket: str | None,
     project: str,
 ) -> str:
     """Resolve the topic for a single usage record.
 
-    Priority: gitBranch (highest, most reliable signal) > most-recent
-    user-prompt ticket mention in this session > project folder > unclassified.
+    Priority: gitBranch ticket > project folder ticket > unclassified.
+
+    The previous version also had a "most-recent user-prompt ticket
+    mention" fallback — dropped because it leaked across context
+    switches (a single mention of COR-X mid-session would tag every
+    record after that as COR-X even after the conversation moved on).
+    gitBranch and folder are deterministic; ad-hoc work without either
+    falls into a branch-scoped unclassified bucket below.
     """
     if git_branch:
         tickets = extract_tickets(git_branch)
         if tickets:
             return tickets[0]
-    if current_prompt_ticket:
-        return current_prompt_ticket
     folder_tickets = extract_tickets(project)
     if folder_tickets:
         return folder_tickets[0]
+    # No ticket anywhere — bucket by branch within the project so the
+    # `headway` root checkout doesn't collapse all ad-hoc work into one
+    # mega-row. `unclassified:<project>` (no branch) means we don't know
+    # the branch (record had no gitBranch field).
+    if git_branch:
+        return f"unclassified:{project}#{git_branch}"
     return f"unclassified:{project}"
 
 
@@ -74,6 +82,28 @@ def assign_topic(early_user_prompts: list[str], project: str) -> str:
 
 def topic_display_label(topic_id: str) -> str:
     if topic_id.startswith("unclassified:"):
-        project = topic_id.split(":", 1)[1]
-        return f"{project} (no ticket)"
+        rest = topic_id.split(":", 1)[1]
+        # "<project>#<branch>" — split branch out so the user sees it.
+        if "#" in rest:
+            project, branch = rest.split("#", 1)
+            return f"{_short_project(project)} / {branch} (no ticket)"
+        return f"{_short_project(rest)} (no ticket)"
     return topic_id
+
+
+def _short_project(project: str) -> str:
+    """Trim the path-encoded project name to its last segment.
+
+    `~/.claude/projects/` directories look like
+    '-Users-rpon-development-headway-worktree-COR-144-foo' — we just want
+    the leaf. Drop the leading dash and grab the last path-like component
+    (heuristic: split on '-' and take the tail after the last segment that
+    looks like a 'home' path).
+    """
+    s = project.lstrip("-")
+    # Common case: "-Users-<user>-development-<thing>" — keep <thing>.
+    if s.startswith("Users-"):
+        parts = s.split("-")
+        if len(parts) >= 4 and parts[2] == "development":
+            return "-".join(parts[3:])
+    return s

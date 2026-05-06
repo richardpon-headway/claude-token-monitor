@@ -5,16 +5,16 @@ import type { ProjectRow, SessionRow, TopicRow } from "../types";
 
 const topicRows: TopicRow[] = [
   { topic_id: "COR-100", label: "COR-100", sessions: 2, output: 100,
-    input: 10, messages: 5, last_at: null, summary: null },
+    input: 10, messages: 5, last_at: null, summary: null, sample_prompts: [] },
   { topic_id: "COR-200", label: "COR-200", sessions: 1, output: 500,
-    input: 50, messages: 20, last_at: null, summary: null },
+    input: 50, messages: 20, last_at: null, summary: null, sample_prompts: [] },
   { topic_id: "COR-300", label: "COR-300", sessions: 3, output: 250,
-    input: 25, messages: 10, last_at: null, summary: null },
+    input: 25, messages: 10, last_at: null, summary: null, sample_prompts: [] },
 ];
 
 const projectRows: ProjectRow[] = [
-  { project: "alpha", sessions: 1, output: 100, input: 0, messages: 1, last_at: null },
-  { project: "beta", sessions: 1, output: 50, input: 0, messages: 1, last_at: null },
+  { project: "alpha", sessions: 1, output: 100, input: 0, messages: 1, last_at: null, sample_prompts: [] },
+  { project: "beta", sessions: 1, output: 50, input: 0, messages: 1, last_at: null, sample_prompts: [] },
 ];
 
 function getRowOrder(): string[] {
@@ -91,7 +91,7 @@ describe("UsageList", () => {
     const rows: TopicRow[] = [
       { topic_id: "COR-144", label: "COR-144", sessions: 1, output: 100,
         input: 0, messages: 1, last_at: null,
-        summary: "IA call webhook source of truth" },
+        summary: "IA call webhook source of truth", sample_prompts: [] },
     ];
     render(<UsageList by="topic" rows={rows} />);
     expect(screen.getByText(/IA call webhook source of truth/)).toBeInTheDocument();
@@ -100,7 +100,7 @@ describe("UsageList", () => {
   it("renders only the topic id when summary is null", () => {
     const rows: TopicRow[] = [
       { topic_id: "COR-144", label: "COR-144", sessions: 1, output: 100,
-        input: 0, messages: 1, last_at: null, summary: null },
+        input: 0, messages: 1, last_at: null, summary: null, sample_prompts: [] },
     ];
     render(<UsageList by="topic" rows={rows} />);
     expect(screen.getByText("COR-144")).toBeInTheDocument();

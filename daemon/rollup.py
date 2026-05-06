@@ -11,10 +11,6 @@ State held here:
   - seen_message_ids  : set[str]                   (passed to parser; persists across calls)
   - file_offsets      : dict[str, int]             (per-file resume point for the watcher)
   - by_minute_local   : dict[minute_iso, int]      (output tokens per local-time minute)
-  - prompt_ticket_state : dict[session_id, str|None]
-        Per-session "most recent user-prompt ticket mention" — passed in/out
-        of parse_file() so per-record topic resolution survives incremental
-        reads of the same session file.
 
 Project-level and topic-level views are derived on demand from by_session,
 so we don't have to keep them in sync on every ingest.
@@ -101,9 +97,6 @@ class Rollup:
         # Both unbounded but tiny (one entry per minute of actual activity).
         self.by_minute_local: dict[str, int] = {}
         self.by_minute_utc: dict[str, int] = {}
-        # session_id -> running "current_prompt_ticket" used for per-record
-        # topic resolution. Persisted across incremental parses.
-        self.prompt_ticket_state: dict[str, str | None] = {}
         # Raw record list for time-windowed group queries (filtered by
         # timestamp at request time). Bounded by the 35-day mtime cutoff
         # on input files; ~3MB at current usage volume.
@@ -118,10 +111,6 @@ class Rollup:
     def set_file_offset(self, path: str, offset: int) -> None:
         with self._lock:
             self.file_offsets[path] = offset
-
-    def prompt_ticket_for(self, session_id: str) -> str | None:
-        with self._lock:
-            return self.prompt_ticket_state.get(session_id)
 
     def load_cache_days(
         self,
@@ -184,9 +173,6 @@ class Rollup:
                     session.segments.items(),
                     key=lambda kv: kv[1].output,
                 )[0]
-
-            # Persist the parser's ending prompt-ticket state for the next call.
-            self.prompt_ticket_state[result.session_id] = result.current_prompt_ticket
 
             if file_path is not None and result.bytes_read:
                 self.file_offsets[file_path] = result.bytes_read
@@ -434,6 +420,28 @@ class Rollup:
                 for sid, s in self.by_session.items()
             }
 
+        # Sample-prompts helper: gather up to 3 early prompts from the
+        # in-window sessions associated with each row, ordered by the
+        # session's most recent activity. Used to make rows
+        # self-explaining ("what is this topic actually about?").
+        def _sample_prompts(session_ids: set[str]) -> list[str]:
+            sids = sorted(
+                session_ids,
+                key=lambda s: session_meta.get(s, ("", [], None))[2] or datetime.datetime.min,
+                reverse=True,
+            )
+            out: list[str] = []
+            for sid in sids:
+                meta = session_meta.get(sid)
+                if not meta:
+                    continue
+                for p in meta[1]:
+                    if p and p not in out:
+                        out.append(p)
+                        if len(out) >= 3:
+                            return out
+            return out
+
         if by == "topic":
             agg: dict[str, dict] = {}
             for r in window:
@@ -459,6 +467,7 @@ class Rollup:
                     "input": v["input"],
                     "messages": v["messages"],
                     "last_at": v["last_at"],
+                    "sample_prompts": _sample_prompts(v["sessions"]),
                 }
                 for v in agg.values()
             ]
@@ -488,6 +497,7 @@ class Rollup:
                     "input": v["input"],
                     "messages": v["messages"],
                     "last_at": v["last_at"],
+                    "sample_prompts": _sample_prompts(v["sessions"]),
                 }
                 for v in agg.values()
             ]
