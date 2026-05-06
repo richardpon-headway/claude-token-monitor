@@ -399,6 +399,8 @@ class Rollup:
         self,
         by: str,
         range_minutes: int,
+        *,
+        session_overrides: dict[str, str] | None = None,
     ) -> list[dict]:
         """Topic / session / project rows aggregated over the last
         `range_minutes` of activity.
@@ -408,9 +410,23 @@ class Rollup:
         output / input / messages totals AND last_at within the window.
         Session rows include project, early_user_prompts, dominant
         topic, and per-topic segments within the window.
+
+        `session_overrides` is an optional {session_id -> override_ticket}
+        map (typically supplied by the LLM-based session classifier).
+        Records whose current topic_id starts with 'unclassified:' have
+        their effective topic swapped to the override; records that
+        already had a real ticket from gitBranch / folder regex are
+        untouched.
         """
         now = datetime.datetime.now(datetime.timezone.utc)
         cutoff = now - datetime.timedelta(minutes=range_minutes)
+        overrides = session_overrides or {}
+
+        def _topic_for(r: UsageRecord) -> str:
+            ot = overrides.get(r.session_id)
+            if ot and r.topic_id.startswith("unclassified:"):
+                return ot
+            return r.topic_id
 
         with self._lock:
             window = [r for r in self.records if r.timestamp_utc >= cutoff]
@@ -445,8 +461,9 @@ class Rollup:
         if by == "topic":
             agg: dict[str, dict] = {}
             for r in window:
-                a = agg.setdefault(r.topic_id, {
-                    "topic_id": r.topic_id,
+                topic = _topic_for(r)
+                a = agg.setdefault(topic, {
+                    "topic_id": topic,
                     "sessions": set(),
                     "output": 0,
                     "input": 0,
@@ -521,7 +538,7 @@ class Rollup:
             a["messages"] += 1
             if a["last_at"] is None or r.timestamp_utc > a["last_at"]:
                 a["last_at"] = r.timestamp_utc
-            seg = a["segments"].setdefault(r.topic_id, {
+            seg = a["segments"].setdefault(_topic_for(r), {
                 "output": 0, "input": 0, "messages": 0, "last_at": None,
             })
             seg["output"] += r.output_tokens
