@@ -499,6 +499,64 @@ def test_classify_session_records_output_at_classification(monkeypatch):
     assert result.output_at_classification == 12345
 
 
+def test_tick_classifications_includes_tickets_from_prompts(tmp_path, monkeypatch):
+    """Tickets mentioned in user prompts must enter the candidate list,
+    even when the rollup never surfaced them as a topic. Otherwise sessions
+    in unclassified worktrees that explicitly reference a ticket can't
+    be re-attributed."""
+    import datetime as _dt
+    now = _dt.datetime.now(_dt.timezone.utc)
+
+    sessions = [
+        # An unclassified session in the window that references COR-65
+        # in its prompts. The rollup has never seen COR-65 as a topic.
+        _FakeSession(
+            segments={"unclassified:headway": object()},
+            early_user_prompts=["fix the COR-65 currency scroll bug"],
+            session_id="needs-classifying",
+            topic_id="unclassified:headway",
+            last_at=now,
+            output=1000,
+        ),
+        # Another session whose prompts mention DT-1890 — should also
+        # land in the candidate list.
+        _FakeSession(
+            segments={"DT-1890": object()},
+            early_user_prompts=["DT-1890 deploy overhead"],
+            session_id="dt-session",
+            topic_id="DT-1890",
+            last_at=now,
+            output=500,
+        ),
+    ]
+    rollup = _FakeRollup(topics=["DT-1890"], sessions=sessions)
+
+    seen_candidates: list[list[tuple[str, str | None]]] = []
+
+    def fake_classify(session_id, prompts_sample, candidate_tickets, **kwargs):
+        seen_candidates.append(list(candidate_tickets))
+        return labeler.SessionClassification(
+            ticket="COR-65", summary="currency bug", confidence=0.9,
+            output_at_classification=kwargs.get("output_at_classification", 0),
+        )
+
+    monkeypatch.setattr(labeler, "classify_session", fake_classify)
+    monkeypatch.setattr(labeler, "summarize_topic", lambda *a, **kw: None)
+
+    lab = labeler.Labeler(
+        rollup,
+        cache_path=tmp_path / "c.json",
+        classification_cache_path=tmp_path / "cc.json",
+    )
+    lab.tick()
+
+    assert len(seen_candidates) == 1
+    candidate_ids = {tid for tid, _ in seen_candidates[0]}
+    # DT-1890 came in via topic snapshot; COR-65 came in via prompt text.
+    assert "DT-1890" in candidate_ids
+    assert "COR-65" in candidate_ids
+
+
 def test_labeler_start_stop_lifecycle(tmp_path, monkeypatch):
     rollup = _FakeRollup([], [])
     monkeypatch.setattr(labeler, "summarize_topic", lambda *a, **kw: None)

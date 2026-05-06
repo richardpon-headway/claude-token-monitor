@@ -27,6 +27,8 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterable
 
+from daemon.topics import extract_tickets
+
 if TYPE_CHECKING:
     from daemon.rollup import Rollup, SessionInfo
 
@@ -519,18 +521,31 @@ class Labeler:
         CLASSIFICATION_WINDOW_DAYS that don't have a cached
         classification (or whose output has grown >= 2x since the
         cached one — B refresh policy)."""
-        # Candidate ticket list: tickets that touched the rollup at all
-        # — windowed_groups respects the time window, but here we want
-        # the full ticket vocabulary the rollup knows about.
         snapshot = self.rollup.snapshot_topics()
+        sessions = self.rollup.snapshot_sessions()
+
+        # Candidate tickets come from two sources so the LLM has the full
+        # vocabulary, not just the tickets the rollup happened to surface
+        # via gitBranch / folder:
+        #   1. Tickets that touched the rollup as a topic.
+        #   2. Tickets mentioned in any session's early user prompts —
+        #      catches "let's work on COR-65" inside a worktree that
+        #      wasn't named after the ticket.
+        candidate_set: set[str] = set()
+        for t in snapshot:
+            if is_ticket_topic(t.topic_id):
+                candidate_set.add(t.topic_id)
+        for s in sessions:
+            for prompt in s.early_user_prompts:
+                for tid in extract_tickets(prompt):
+                    candidate_set.add(tid)
+
         candidate_tickets: list[tuple[str, str | None]] = []
         with self._cache_lock:
-            for t in snapshot:
-                if not is_ticket_topic(t.topic_id):
-                    continue
-                cached = self._cache.get(t.topic_id)
+            for tid in sorted(candidate_set):
+                cached = self._cache.get(tid)
                 candidate_tickets.append(
-                    (t.topic_id, cached.summary if cached else None)
+                    (tid, cached.summary if cached else None)
                 )
 
         # Walk current sessions; pick unclassified ones in the window
@@ -539,7 +554,6 @@ class Labeler:
         cutoff = _dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(
             days=CLASSIFICATION_WINDOW_DAYS
         )
-        sessions = self.rollup.snapshot_sessions()
         pending: list = []
         with self._classification_lock:
             for s in sessions:
