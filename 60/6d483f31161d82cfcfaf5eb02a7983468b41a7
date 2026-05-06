@@ -1,0 +1,24 @@
+README.md
+  s_8904db346b962b::t_1c3c120d64348d 29-31,33-43,54-61
+  s_8904db346b962b::t_479a47f365d656 21-22
+  s_8904db346b962b::t_00cf91ccc8fc7f 124-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "606d483f31161d82cfcfaf5eb02a7983468b41a7",
+  "prompts": {},
+  "sessions": {
+    "s_8904db346b962b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "915d1f16-81e8-40c1-ba3d-4da4a116d589",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Richard Pon <richard.pon@findheadway.com>",
+      "custom_attributes": {
+        "runtime": "local"
+      }
+    }
+  }
+}
