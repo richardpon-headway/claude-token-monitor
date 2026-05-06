@@ -34,6 +34,21 @@ def extract_tickets(text: str) -> list[str]:
     return TICKET_RE.findall(text)
 
 
+def infer_session_ticket(early_user_prompts: list[str]) -> str | None:
+    """Most-common ticket mentioned across a session's early user prompts,
+    or None if none mention one. Ties broken by first occurrence.
+
+    Used to re-attribute `unclassified:` sessions whose branch/folder
+    didn't carry a ticket but whose opening prompts did.
+    """
+    counts: Counter[str] = Counter()
+    for p in early_user_prompts:
+        counts.update(extract_tickets(p))
+    if not counts:
+        return None
+    return counts.most_common(1)[0][0]
+
+
 def assign_topic_for_record(
     git_branch: str | None,
     project: str,
