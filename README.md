@@ -29,18 +29,16 @@ exactly and adds an Activity Monitor-style live view.
 ```bash
 mise trust && mise install   # installs uv, node, pnpm at versions in mise.toml
 make install                 # uv sync + pnpm install
-make dev                     # daemon (:47821) + vite dev (:5173 with /api proxy)
-# or:
-make build-ui && make run    # production: daemon serves built bundle at /
+make run                     # daemon (:47821) + vite dev (:5173 with /api proxy)
 ```
 
-In dev mode point your browser at <http://localhost:5173> (Vite, hot-reload).
-In production mode point it at <http://127.0.0.1:47821> (daemon serves the
-built static bundle).
+Point your browser at <http://localhost:5173> for the hot-reloading Vite UI,
+or <http://127.0.0.1:47821> if you've previously run `make build-ui` and
+want the daemon to serve the built bundle directly.
 
-To stop, `Ctrl-C` the `make dev` / `make run` process. To restart after
-pulling new code, kill the daemon and re-run; the daemon reads its on-disk
-caches at startup so no state is lost.
+To stop, `Ctrl-C` the `make run` process. To restart after pulling new
+code, kill the daemon and re-run; the daemon reads its on-disk caches at
+startup so no state is lost.
 
 ## Long history (Claude Code retention setting)
 

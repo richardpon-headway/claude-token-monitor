@@ -1,4 +1,4 @@
-.PHONY: install run dev test build-ui install-launchagent uninstall-launchagent clean
+.PHONY: install run test build-ui install-launchagent uninstall-launchagent clean
 
 # Python version for `uv sync`. uv resolves this via PATH (mise/homebrew/etc.)
 # or downloads a managed standalone build if none is found.
@@ -13,9 +13,6 @@ install:
 	fi
 
 run:
-	uv run python -m daemon.main
-
-dev:
 	@echo "starting daemon (:47821) + vite dev (:5173 with /api proxy)"
 	@(uv run python -m daemon.main 2>&1 | sed 's/^/[daemon] /') & \
 	 (cd ui && pnpm dev 2>&1 | sed 's/^/[vite]   /') & \
