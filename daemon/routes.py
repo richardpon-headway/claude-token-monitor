@@ -19,7 +19,7 @@ from fastapi.responses import StreamingResponse
 
 from daemon.labeler import Labeler
 from daemon.rollup import Rollup
-from daemon.topics import topic_display_label
+from daemon.topics import infer_session_ticket, topic_display_label
 
 COALESCE_INTERVAL = 0.5  # seconds between SSE pushes per subscriber
 
@@ -101,13 +101,16 @@ def make_router(
             "1h": 60, "4h": 240, "1d": 1440,
             "7d": 7 * 1440, "30d": 30 * 1440,
         }[window]
-        # Build a session_id -> override_ticket map from the labeler's
-        # classifications so unclassified records get re-attributed.
+        # Heuristic re-attribution: any session whose dominant topic is
+        # unclassified but whose early prompts mention a Jira ticket gets
+        # overridden to that ticket. Cheap regex, recomputed each request.
         session_overrides: dict[str, str] = {}
-        if labeler is not None:
-            for sid, c in labeler.all_classifications().items():
-                if c.ticket:
-                    session_overrides[sid] = c.ticket
+        for s in rollup.snapshot_sessions():
+            if not s.topic_id or not s.topic_id.startswith("unclassified:"):
+                continue
+            inferred = infer_session_ticket(s.early_user_prompts)
+            if inferred:
+                session_overrides[s.session_id] = inferred
         rows = [
             _jsonable(r)
             for r in rollup.windowed_groups(

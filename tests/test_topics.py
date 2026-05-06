@@ -4,6 +4,7 @@ from daemon.topics import (
     assign_topic,
     assign_topic_for_record,
     extract_tickets,
+    infer_session_ticket,
     topic_display_label,
 )
 
@@ -126,3 +127,24 @@ def test_per_record_no_prompt_history_fallback():
         project="headway",
     )
     assert topic == "unclassified:headway#my-feature-branch"
+
+
+def test_infer_session_ticket_returns_most_common():
+    assert infer_session_ticket(
+        ["fix COR-144 webhook", "more on COR-144", "also touches DT-1890"]
+    ) == "COR-144"
+
+
+def test_infer_session_ticket_returns_none_when_no_ticket_mentioned():
+    assert infer_session_ticket(["look around the codebase", "what does X do"]) is None
+
+
+def test_infer_session_ticket_returns_none_for_empty_prompts():
+    assert infer_session_ticket([]) is None
+
+
+def test_infer_session_ticket_ties_break_by_first_occurrence():
+    """Counter.most_common is stable in insertion order on ties — so the
+    first ticket to appear wins when counts are equal."""
+    assert infer_session_ticket(["COR-65 then DT-1890"]) == "COR-65"
+    assert infer_session_ticket(["DT-1890 then COR-65"]) == "DT-1890"
