@@ -18,18 +18,29 @@ exactly and adds an Activity Monitor-style live view.
   (1-hour buckets for 7d, 4-hour for 30d) — Datadog-style density.
 - **Topic / Session / Project table** that follows the same range selector.
   Topics are extracted by regex from gitBranch, recent user prompts, and
-  project-folder names. Real Jira ticket summaries (via `acli`) plus
-  `claude -p` fallback for unticketed buckets.
+  project-folder names. Real Jira ticket summaries via `acli` when the
+  CLI is available; non-ticket buckets just show the project + branch.
 - **Live updates over SSE** — 100–600 ms typical latency from a token
   landing on disk to the UI reflecting it. Falls back to 10 s polling
   if SSE drops.
 
 ## Quick start
 
+Prerequisite: [`mise`](https://mise.jdx.dev) (manages `uv`, Node, pnpm at
+the versions pinned in `mise.toml`). If you don't have it:
+
 ```bash
-mise trust && mise install   # installs uv, node, pnpm at versions in mise.toml
-make install                 # uv sync + pnpm install
-make run                     # daemon (:47821) + vite dev (:5173 with /api proxy)
+curl https://mise.run | sh    # then restart your shell, or `eval "$(~/.local/bin/mise activate)"`
+```
+
+Then clone and run:
+
+```bash
+git clone https://github.com/richardpon-headway/claude-token-monitor.git
+cd claude-token-monitor
+mise trust && mise install    # uv, node, pnpm at the versions in mise.toml
+make install                  # uv sync + pnpm install
+make run                      # daemon (:47821) + vite dev (:5173 with /api proxy)
 ```
 
 Point your browser at <http://localhost:5173> for the hot-reloading Vite UI,
@@ -39,6 +50,15 @@ want the daemon to serve the built bundle directly.
 To stop, `Ctrl-C` the `make run` process. To restart after pulling new
 code, kill the daemon and re-run; the daemon reads its on-disk caches at
 startup so no state is lost.
+
+### Optional: Jira ticket summaries
+
+If you have Atlassian's [`acli`](https://developer.atlassian.com/cloud/acli/)
+installed and authenticated, the dashboard will pull real Jira issue
+summaries for ticket-shaped topics (`COR-144`, etc.). Without it the
+topics still appear, just without the issue title. No setup required —
+the daemon detects `acli` at runtime and falls through silently if it's
+missing or the call fails.
 
 ## Long history (Claude Code retention setting)
 
@@ -101,5 +121,5 @@ Caches:
   (per-day totals; the daemon reads it at startup to fill in days that
   rotated out of the live JSONL window).
 - Topic-summary cache: `~/.cache/claude-token-monitor/topic-summaries.json`
-  (Jira titles + LLM-generated descriptions per topic; survives daemon
-  restarts so summaries reappear instantly).
+  (Jira issue titles per ticket-shaped topic; survives daemon restarts so
+  summaries reappear instantly. 7-day TTL.).
