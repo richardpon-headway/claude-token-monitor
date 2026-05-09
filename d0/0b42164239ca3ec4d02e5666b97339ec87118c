@@ -1,0 +1,24 @@
+pyproject.toml
+  s_c9f57b1a9f8b70::t_fdf4e195bcc023 5-6
+LICENSE
+  s_c9f57b1a9f8b70::t_8e9c9c82030480 1-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "d00b42164239ca3ec4d02e5666b97339ec87118c",
+  "prompts": {},
+  "sessions": {
+    "s_c9f57b1a9f8b70": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ce9a995f-8452-429c-89dd-89715a554d2a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Richard Pon <richard.pon@findheadway.com>",
+      "custom_attributes": {
+        "runtime": "local"
+      }
+    }
+  }
+}
