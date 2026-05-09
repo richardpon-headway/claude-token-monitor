@@ -2,6 +2,8 @@
 name = "claude-token-monitor"
 version = "0.1.0"
 description = "Local daemon + web UI for monitoring Claude Code token usage in real time."
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
