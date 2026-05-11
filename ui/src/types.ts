@@ -77,6 +77,6 @@ export interface TimeseriesBucket {
 
 export interface TimeseriesResponse {
   range: RangeKey;
-  granularity: "minute" | "hour" | "4hour" | "day";
+  granularity: "minute" | "10min" | "hour" | "4hour" | "day";
   buckets: TimeseriesBucket[];
 }
