@@ -1,0 +1,30 @@
+ui/src/types.ts
+  s_aca39ca824593b::t_96a97a4898c009 80
+ui/src/components/LiveChart.tsx
+  s_aca39ca824593b::t_ce1589a07b28b1 42
+  s_aca39ca824593b::t_33dad2d93106dd 153
+  s_aca39ca824593b::t_15c702e7a2e518 132
+  s_aca39ca824593b::t_2774d8e4c34d24 212
+  s_aca39ca824593b::t_522de949855899 30
+daemon/routes.py
+  s_aca39ca824593b::t_bb7a31f94310fc 134-139,143-146
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "80bada366f7054c7149b31940e85831052fed176",
+  "prompts": {},
+  "sessions": {
+    "s_aca39ca824593b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bcb30a6d-bd51-4f42-9c60-382db1b00edc",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Richard Pon <richard.pon@findheadway.com>",
+      "custom_attributes": {
+        "runtime": "local"
+      }
+    }
+  }
+}
