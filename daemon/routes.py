@@ -131,15 +131,19 @@ def make_router(
         window: str = Query("1h", alias="range", pattern="^(1h|4h|1d|7d|30d)$"),
         tz: str = Query("local", pattern="^(local|utc)$"),
     ) -> dict:
-        # 1h/4h/1d show every minute (60/240/1440 bars).
-        # 7d/30d aggregate per-minute data to wider buckets so bars are
-        # narrow and dense like Datadog: 7d uses 1-hour buckets (168 bars),
-        # 30d uses 4-hour buckets (180 bars).
-        # tz controls whether bucket boundaries land on local or UTC midnight.
-        minute_windows = {"1h": 60, "4h": 240, "1d": 1440}
+        # 1h/4h show every minute (60/240 bars). 1d aggregates per-minute
+        # data to 10-minute buckets (144 bars) — minute-level was too noisy
+        # at this zoom. 7d uses 1-hour buckets (168 bars), 30d uses 4-hour
+        # buckets (180 bars). tz controls whether bucket boundaries land
+        # on local or UTC midnight.
+        minute_windows = {"1h": 60, "4h": 240}
         if window in minute_windows:
             data = rollup.snapshot_timeseries(minute_windows[window], tz=tz)
             granularity = "minute"
+        elif window == "1d":
+            minute_data = rollup.snapshot_timeseries(1440, tz=tz)
+            data = _aggregate_buckets(minute_data, 10)
+            granularity = "10min"
         else:
             total_min = 7 * 1440 if window == "7d" else 30 * 1440
             bucket_min = 60 if window == "7d" else 240

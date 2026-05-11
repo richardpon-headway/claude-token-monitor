@@ -27,6 +27,7 @@ function padBuckets(
   // Each granularity is just "how many minutes wide is one bar?"
   const bucketWidthMin: Record<TimeseriesResponse["granularity"], number> = {
     minute: 1,
+    "10min": 10,
     hour: 60,
     "4hour": 240,
     day: 1440,
@@ -38,7 +39,7 @@ function padBuckets(
   const totalBars: Record<RangeKey, number> = {
     "1h": 60,
     "4h": 240,
-    "1d": 1440,
+    "1d": 144,           // 144 ten-minute bars
     "7d": 7 * 24,        // 168 hour-bars
     "30d": 30 * 6,       // 180 four-hour-bars
   };
@@ -128,7 +129,7 @@ export function LiveChart({
     () => padBuckets(data.buckets, range, data.granularity, tz),
     [data.buckets, range, data.granularity, tz],
   );
-  const isMinute = data.granularity === "minute";
+  const isSubDay = data.granularity !== "day";
 
   // Explicit tick positions: only "interesting" timestamps (midnights and
   // a handful of round hour marks per range). Time-scale axis (below)
@@ -149,6 +150,7 @@ export function LiveChart({
     if (padded.length === 0) return undefined;
     const widthMin: Record<TimeseriesResponse["granularity"], number> = {
       minute: 1,
+      "10min": 10,
       hour: 60,
       "4hour": 240,
       day: 1440,
@@ -207,7 +209,7 @@ export function LiveChart({
                 const opts: Intl.DateTimeFormatOptions = tz === "utc"
                   ? { timeZone: "UTC" }
                   : {};
-                return isMinute
+                return isSubDay
                   ? d.toLocaleString(undefined, opts) + (tz === "utc" ? " UTC" : "")
                   : d.toLocaleDateString(undefined, opts) + (tz === "utc" ? " UTC" : "");
               }}
