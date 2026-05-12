@@ -10,6 +10,8 @@ from __future__ import annotations
 import asyncio
 import datetime
 import json
+import logging
+import pathlib
 import time
 from dataclasses import asdict, is_dataclass
 from typing import Any
@@ -21,7 +23,47 @@ from daemon.labeler import Labeler
 from daemon.rollup import Rollup
 from daemon.topics import infer_session_ticket, topic_display_label
 
+logger = logging.getLogger(__name__)
+
 COALESCE_INTERVAL = 0.5  # seconds between SSE pushes per subscriber
+
+# Claude Developer Hub writes a JSON sidecar per spawned session here,
+# keyed by session_id. We use it to recover a ticket the prompt-scan
+# heuristic missed (e.g. sessions where the ticket only appears in the
+# branch name or worktree path). The sidecar value wins over inferred.
+SIDECAR_DIR = pathlib.Path.home() / ".cache" / "claude-token-monitor" / "session-meta"
+
+# Keyed by session_id. Stored as (mtime, parsed_dict_or_None). Stale
+# entries are evicted lazily on the next read when mtime changes or the
+# file disappears.
+_sidecar_cache: dict[str, tuple[float, dict | None]] = {}
+
+
+def read_session_sidecar(session_id: str) -> dict | None:
+    """Return CDH-written sidecar metadata for `session_id`, or None.
+
+    Cached by file mtime so steady-state requests don't re-parse JSON.
+    Malformed JSON is logged and treated as 'no sidecar' rather than
+    raised — a broken sidecar should never take down the API.
+    """
+    path = SIDECAR_DIR / f"{session_id}.json"
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        _sidecar_cache.pop(session_id, None)
+        return None
+    cached = _sidecar_cache.get(session_id)
+    if cached is not None and cached[0] == mtime:
+        return cached[1]
+    try:
+        data = json.loads(path.read_text())
+        if not isinstance(data, dict):
+            data = None
+    except (OSError, ValueError) as e:
+        logger.warning("failed to parse sidecar %s: %s", path, e)
+        data = None
+    _sidecar_cache[session_id] = (mtime, data)
+    return data
 
 
 def _jsonable(obj: Any) -> Any:
@@ -111,6 +153,9 @@ def make_router(
             inferred = infer_session_ticket(s.early_user_prompts)
             if inferred:
                 session_overrides[s.session_id] = inferred
+            sidecar = read_session_sidecar(s.session_id)
+            if sidecar and sidecar.get("ticket"):
+                session_overrides[s.session_id] = sidecar["ticket"]
         rows = [
             _jsonable(r)
             for r in rollup.windowed_groups(
