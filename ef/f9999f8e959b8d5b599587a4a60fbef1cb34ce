@@ -1,0 +1,25 @@
+tests/test_sidecar.py
+  s_53a672ad4bfafa::t_7eef19f3a988e3 1-79
+daemon/routes.py
+  s_53a672ad4bfafa::t_d285ce498c3d40 13-14,26-27,30-66
+  s_53a672ad4bfafa::t_9b5fda0ded3f3b 156-158
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "eff9999f8e959b8d5b599587a4a60fbef1cb34ce",
+  "prompts": {},
+  "sessions": {
+    "s_53a672ad4bfafa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ccf17119-41e4-45fd-9d9e-5147956b8bef",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Richard Pon <richard.pon@findheadway.com>",
+      "custom_attributes": {
+        "runtime": "local"
+      }
+    }
+  }
+}
