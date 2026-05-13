@@ -1,0 +1,28 @@
+tests/test_parser.py
+  s_23ee83537207e1::t_0f76b99d31e984 139,146
+tests/test_labeler.py
+  s_23ee83537207e1::t_f93bdd08917b77 50,52
+ui/src/components/UsageList.test.tsx
+  s_23ee83537207e1::t_797a8837e864ff 94,97
+tests/test_topics.py
+  s_23ee83537207e1::t_0dccef75e00b05 97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "661d7443e156b849fd8191134cda289a6bfd21f8",
+  "prompts": {},
+  "sessions": {
+    "s_23ee83537207e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "be9a71fe-1377-4717-b6dd-39507993f0b3",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Richard Pon <richard.pon@findheadway.com>",
+      "custom_attributes": {
+        "runtime": "local"
+      }
+    }
+  }
+}
