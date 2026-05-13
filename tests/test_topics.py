@@ -94,7 +94,7 @@ def test_topic_display_label_branch_scoped():
 
 def test_per_record_branch_wins_over_folder():
     topic = assign_topic_for_record(
-        git_branch="zendesk_trigger_setup_COR-144",
+        git_branch="feature_setup_COR-144",
         project="headway-worktree-COR-200-foo",
     )
     assert topic == "COR-144"

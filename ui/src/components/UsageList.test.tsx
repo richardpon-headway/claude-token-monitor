@@ -91,10 +91,10 @@ describe("UsageList", () => {
     const rows: TopicRow[] = [
       { topic_id: "COR-144", label: "COR-144", sessions: 1, output: 100,
         input: 0, messages: 1, last_at: null,
-        summary: "IA call webhook source of truth", sample_prompts: [] },
+        summary: "example ticket summary", sample_prompts: [] },
     ];
     render(<UsageList by="topic" rows={rows} />);
-    expect(screen.getByText(/IA call webhook source of truth/)).toBeInTheDocument();
+    expect(screen.getByText(/example ticket summary/)).toBeInTheDocument();
   });
 
   it("renders only the topic id when summary is null", () => {
