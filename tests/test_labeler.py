@@ -47,9 +47,9 @@ def test_is_ticket_topic():
 
 def test_fetch_jira_summary_returns_summary_field(monkeypatch):
     payload = {"key": "COR-144",
-               "fields": {"summary": "IA call webhook source of truth"}}
+               "fields": {"summary": "example ticket summary"}}
     _patch_run(monkeypatch, FakeProc(stdout=json.dumps(payload)))
-    assert labeler.fetch_jira_summary("COR-144") == "IA call webhook source of truth"
+    assert labeler.fetch_jira_summary("COR-144") == "example ticket summary"
 
 
 def test_fetch_jira_summary_none_when_acli_missing(monkeypatch):
