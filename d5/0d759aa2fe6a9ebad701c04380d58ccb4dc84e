@@ -1,0 +1,22 @@
+.gitignore
+  s_4afa79b1b77370::t_2a0bf89835643a 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "d50d759aa2fe6a9ebad701c04380d58ccb4dc84e",
+  "prompts": {},
+  "sessions": {
+    "s_4afa79b1b77370": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fa77b4a0-5a3f-4754-aa37-706c4d1aedc0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Richard Pon <richard.pon@findheadway.com>",
+      "custom_attributes": {
+        "runtime": "local"
+      }
+    }
+  }
+}
