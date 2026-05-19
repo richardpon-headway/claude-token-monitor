@@ -26,3 +26,4 @@ daemon/static/
 # IDE
 .vscode/
 .idea/
+.claude/
