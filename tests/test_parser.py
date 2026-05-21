@@ -59,12 +59,12 @@ def test_early_user_prompts_extracts_from_content_blocks(make_session):
             "role": "user",
             "content": [
                 {"type": "tool_result", "content": "noise"},
-                {"type": "text", "text": "  fix COR-144 please  "},
+                {"type": "text", "text": "  fix PROJ-144 please  "},
             ],
         }},
     ])
     r = parse_file(path, projects_dir=projects_dir, seen_message_ids=set())
-    assert r.early_user_prompts == ["fix COR-144 please"]
+    assert r.early_user_prompts == ["fix PROJ-144 please"]
 
 
 def test_tail_offset_partial_line_safe(make_session, tmp_path):
@@ -101,26 +101,26 @@ def test_assigns_topic_per_record_from_branch(make_session):
     projects_dir, write, record, now = make_session
     path = write("p", "s", [
         record(msg_id="m1", timestamp=now(), output=10,
-               git_branch="feat/COR-144-foo"),
+               git_branch="feat/PROJ-144-foo"),
         record(msg_id="m2", timestamp=now(), output=20,
-               git_branch="feat/COR-119-bar"),
+               git_branch="feat/PROJ-119-bar"),
     ])
     r = parse_file(path, projects_dir=projects_dir, seen_message_ids=set())
-    assert [rec.topic_id for rec in r.records] == ["COR-144", "COR-119"]
+    assert [rec.topic_id for rec in r.records] == ["PROJ-144", "PROJ-119"]
 
 
 def test_branch_without_ticket_buckets_by_branch_not_by_prompt_history(make_session):
-    """Old behavior: a prompt mentioning COR-X tagged every subsequent
-    record as COR-X via prompt-history fallback. New behavior: prompt
+    """Old behavior: a prompt mentioning PROJ-X tagged every subsequent
+    record as PROJ-X via prompt-history fallback. New behavior: prompt
     history is dropped entirely, so records on a non-ticket branch land
     in 'unclassified:<project>#<branch>' regardless of what was said
     in prompts."""
     projects_dir, write, record, now = make_session
     path = write("p", "s", [
         record(msg_id="m1", timestamp=now(), output=10, git_branch="main"),
-        record(role="user", text="now let's work on COR-144"),
+        record(role="user", text="now let's work on PROJ-144"),
         record(msg_id="m2", timestamp=now(), output=20, git_branch="main"),
-        record(role="user", text="actually switch to COR-119"),
+        record(role="user", text="actually switch to PROJ-119"),
         record(msg_id="m3", timestamp=now(), output=30, git_branch="main"),
     ])
     r = parse_file(path, projects_dir=projects_dir, seen_message_ids=set())
@@ -136,14 +136,14 @@ def test_captures_git_branch_per_record(make_session):
     projects_dir, write, record, now = make_session
     path = write("p", "s", [
         record(msg_id="m1", timestamp=now(), output=10,
-               git_branch="feature_setup_COR-144"),
+               git_branch="feature_setup_PROJ-144"),
         record(msg_id="m2", timestamp=now(), output=20,
                git_branch="main"),
         record(msg_id="m3", timestamp=now(), output=30),  # no gitBranch
     ])
     r = parse_file(path, projects_dir=projects_dir, seen_message_ids=set())
     branches = [rec.git_branch for rec in r.records]
-    assert branches == ["feature_setup_COR-144", "main", None]
+    assert branches == ["feature_setup_PROJ-144", "main", None]
 
 
 def test_project_resolution(make_session):
