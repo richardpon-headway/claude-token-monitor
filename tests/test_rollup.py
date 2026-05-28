@@ -51,12 +51,12 @@ def test_topic_assigned_from_branch(make_session):
     path = write("plain-project", "s1", [
         record(role="user", text="please look into the carrier autocomplete"),
         record(msg_id="m1", timestamp=now(), output=100,
-               git_branch="feat/COR-144-foo"),
+               git_branch="feat/PROJ-144-foo"),
     ])
     r = Rollup()
     _ingest(r, projects_dir, path)
-    assert r.by_session["s1"].topic_id == "COR-144"
-    assert "COR-144" in r.by_session["s1"].segments
+    assert r.by_session["s1"].topic_id == "PROJ-144"
+    assert "PROJ-144" in r.by_session["s1"].segments
 
 
 def test_topic_unclassified_when_no_ticket(make_session):
@@ -75,18 +75,18 @@ def test_session_with_branch_switch_creates_two_segments(make_session):
     segments, not lump them into one."""
     projects_dir, write, record, now = make_session
     path = write("plain-project", "s1", [
-        record(msg_id="m1", timestamp=now(), output=300, git_branch="feat/COR-144-foo"),
-        record(msg_id="m2", timestamp=now(), output=200, git_branch="feat/COR-119-bar"),
+        record(msg_id="m1", timestamp=now(), output=300, git_branch="feat/PROJ-144-foo"),
+        record(msg_id="m2", timestamp=now(), output=200, git_branch="feat/PROJ-119-bar"),
     ])
     r = Rollup()
     _ingest(r, projects_dir, path)
     s = r.by_session["s1"]
     assert s.output == 500
-    assert set(s.segments.keys()) == {"COR-144", "COR-119"}
-    assert s.segments["COR-144"].output == 300
-    assert s.segments["COR-119"].output == 200
+    assert set(s.segments.keys()) == {"PROJ-144", "PROJ-119"}
+    assert s.segments["PROJ-144"].output == 300
+    assert s.segments["PROJ-119"].output == 200
     # Dominant topic is the one with the most output.
-    assert s.topic_id == "COR-144"
+    assert s.topic_id == "PROJ-144"
 
 
 def test_topic_aggregates_from_segments_across_sessions(make_session):
@@ -94,18 +94,18 @@ def test_topic_aggregates_from_segments_across_sessions(make_session):
     every session that touched it."""
     projects_dir, write, record, now = make_session
     p1 = write("alpha", "s1", [
-        record(msg_id="a1", timestamp=now(), output=100, git_branch="feat/COR-144"),
+        record(msg_id="a1", timestamp=now(), output=100, git_branch="feat/PROJ-144"),
         record(msg_id="a2", timestamp=now(), output=50, git_branch="main"),
     ])
     p2 = write("alpha", "s2", [
-        record(msg_id="b1", timestamp=now(), output=200, git_branch="feat/COR-144"),
+        record(msg_id="b1", timestamp=now(), output=200, git_branch="feat/PROJ-144"),
     ])
     r = Rollup()
     _ingest(r, projects_dir, p1)
     _ingest(r, projects_dir, p2)
     by_topic = {t.topic_id: t for t in r.snapshot_topics()}
-    assert by_topic["COR-144"].output == 300  # 100 + 200
-    assert by_topic["COR-144"].sessions == 2  # both sessions touched it
+    assert by_topic["PROJ-144"].output == 300  # 100 + 200
+    assert by_topic["PROJ-144"].sessions == 2  # both sessions touched it
     # Branch-scoped unclassified bucket — main branch, no ticket.
     assert by_topic["unclassified:alpha#main"].output == 50
     assert by_topic["unclassified:alpha#main"].sessions == 1
@@ -256,9 +256,9 @@ def test_windowed_groups_filters_by_timestamp(make_session):
     stale = (now_utc - _dt.timedelta(hours=2)).isoformat().replace("+00:00", "Z")
     path = write("p", "s", [
         record(msg_id="m_old", timestamp=stale, output=999,
-               git_branch="feat/COR-144"),
+               git_branch="feat/PROJ-144"),
         record(msg_id="m_new", timestamp=fresh, output=42,
-               git_branch="feat/COR-144"),
+               git_branch="feat/PROJ-144"),
     ])
     r = Rollup()
     _ingest(r, projects_dir, path)
@@ -266,7 +266,7 @@ def test_windowed_groups_filters_by_timestamp(make_session):
     # 1h window — only the fresh record (42 tokens) should count
     rows = r.windowed_groups("topic", range_minutes=60)
     assert len(rows) == 1
-    assert rows[0]["topic_id"] == "COR-144"
+    assert rows[0]["topic_id"] == "PROJ-144"
     assert rows[0]["output"] == 42
     assert rows[0]["messages"] == 1
 
@@ -286,8 +286,8 @@ def test_windowed_groups_session_segments_are_per_window(make_session):
     fresh = now_utc.isoformat().replace("+00:00", "Z")
     stale = (now_utc - _dt.timedelta(hours=2)).isoformat().replace("+00:00", "Z")
     path = write("p", "s", [
-        record(msg_id="m1", timestamp=stale, output=300, git_branch="feat/COR-144"),
-        record(msg_id="m2", timestamp=fresh, output=42, git_branch="feat/COR-119"),
+        record(msg_id="m1", timestamp=stale, output=300, git_branch="feat/PROJ-144"),
+        record(msg_id="m2", timestamp=fresh, output=42, git_branch="feat/PROJ-119"),
     ])
     r = Rollup()
     _ingest(r, projects_dir, path)
@@ -297,9 +297,9 @@ def test_windowed_groups_session_segments_are_per_window(make_session):
     s = rows[0]
     assert s["session_id"] == "s"
     assert s["output"] == 42
-    # segments dict only carries the in-window topic, not COR-144
-    assert set(s["segments"].keys()) == {"COR-119"}
-    assert s["topic_id"] == "COR-119"
+    # segments dict only carries the in-window topic, not PROJ-144
+    assert set(s["segments"].keys()) == {"PROJ-119"}
+    assert s["topic_id"] == "PROJ-119"
 
 
 def test_windowed_groups_session_overrides_reattribute_unclassified(make_session):
@@ -310,32 +310,32 @@ def test_windowed_groups_session_overrides_reattribute_unclassified(make_session
     projects_dir, write, record, _now = make_session
     fresh = _dt.datetime.now(_dt.timezone.utc).isoformat().replace("+00:00", "Z")
     path = write("p", "s", [
-        # half on a ticket-named branch (already tagged COR-144)
+        # half on a ticket-named branch (already tagged PROJ-144)
         record(msg_id="m1", timestamp=fresh, output=100,
-               git_branch="feat/COR-144"),
+               git_branch="feat/PROJ-144"),
         # half on main (unclassified by default)
         record(msg_id="m2", timestamp=fresh, output=50, git_branch="main"),
     ])
     r = Rollup()
     _ingest(r, projects_dir, path)
 
-    # No override -> COR-144 (100) and an unclassified row (50)
+    # No override -> PROJ-144 (100) and an unclassified row (50)
     rows = r.windowed_groups("topic", range_minutes=60)
     by_topic = {x["topic_id"]: x for x in rows}
-    assert by_topic["COR-144"]["output"] == 100
+    assert by_topic["PROJ-144"]["output"] == 100
     unclassified_keys = [k for k in by_topic if k.startswith("unclassified:")]
     assert len(unclassified_keys) == 1
     assert by_topic[unclassified_keys[0]]["output"] == 50
 
-    # With override -> the unclassified portion goes to COR-119,
-    # the gitBranch-tagged portion stays as COR-144.
+    # With override -> the unclassified portion goes to PROJ-119,
+    # the gitBranch-tagged portion stays as PROJ-144.
     rows2 = r.windowed_groups(
         "topic", range_minutes=60,
-        session_overrides={"s": "COR-119"},
+        session_overrides={"s": "PROJ-119"},
     )
     by_topic2 = {x["topic_id"]: x for x in rows2}
-    assert by_topic2["COR-144"]["output"] == 100
-    assert by_topic2["COR-119"]["output"] == 50
+    assert by_topic2["PROJ-144"]["output"] == 100
+    assert by_topic2["PROJ-119"]["output"] == 50
     assert not any(k.startswith("unclassified:") for k in by_topic2)
 
 

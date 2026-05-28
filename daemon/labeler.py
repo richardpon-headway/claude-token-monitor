@@ -1,6 +1,6 @@
 """Topic-summary resolver.
 
-Ticket-shaped topics (`COR-144` etc.) get their summary from Jira via the
+Ticket-shaped topics (`PROJ-144` etc.) get their summary from Jira via the
 local `acli` CLI. Anything else (`unclassified:<project>#<branch>`, soft
 themes) is left without a summary — the display label generated in
 `daemon/topics.topic_display_label` already conveys the project/branch.

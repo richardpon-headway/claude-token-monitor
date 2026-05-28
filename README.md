@@ -55,7 +55,7 @@ startup so no state is lost.
 
 If you have Atlassian's [`acli`](https://developer.atlassian.com/cloud/acli/)
 installed and authenticated, the dashboard will pull real Jira issue
-summaries for ticket-shaped topics (`COR-144`, etc.). Without it the
+summaries for ticket-shaped topics (`PROJ-144`, etc.). Without it the
 topics still appear, just without the issue title. No setup required —
 the daemon detects `acli` at runtime and falls through silently if it's
 missing or the call fails.

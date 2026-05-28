@@ -10,7 +10,7 @@ from daemon.topics import (
 
 
 def test_extract_tickets_finds_jira_ids():
-    assert extract_tickets("fix COR-144 then DT-1890") == ["COR-144", "DT-1890"]
+    assert extract_tickets("fix PROJ-144 then TASK-1890") == ["PROJ-144", "TASK-1890"]
 
 
 def test_extract_tickets_requires_2_to_5_uppercase():
@@ -19,48 +19,48 @@ def test_extract_tickets_requires_2_to_5_uppercase():
     # too long
     assert extract_tickets("ABCDEF-1") == []
     # lowercase
-    assert extract_tickets("cor-144") == []
+    assert extract_tickets("proj-123") == []
 
 
 def test_extract_tickets_handles_underscore_after_digits():
-    """Branch names like 'rpon/COR-185_wits_...' must still match COR-185.
+    """Branch names like 'username/PROJ-185_wits_...' must still match PROJ-185.
     Old `\\b` after the digit run failed because `_` is a word char."""
-    assert extract_tickets("rpon/COR-185_wits_tables") == ["COR-185"]
-    assert extract_tickets("feat/DT-1890_reduce_overhead") == ["DT-1890"]
+    assert extract_tickets("username/PROJ-185_wits_tables") == ["PROJ-185"]
+    assert extract_tickets("feat/TASK-1890_reduce_overhead") == ["TASK-1890"]
 
 
 def test_extract_tickets_rejects_glued_alphanumeric():
     """Don't extract from runs that would change the ticket meaning."""
-    # COR-1850 is a valid 4-digit number after the dash, so this matches:
-    assert extract_tickets("COR-1850") == ["COR-1850"]
-    # But COR-185abc isn't a real ticket — letters change semantics.
-    assert extract_tickets("COR-185abc") == []
+    # PROJ-1850 is a valid 4-digit number after the dash, so this matches:
+    assert extract_tickets("PROJ-1850") == ["PROJ-1850"]
+    # But PROJ-185abc isn't a real ticket — letters change semantics.
+    assert extract_tickets("PROJ-185abc") == []
 
 
 def test_assign_topic_prefers_prompt_mention_over_folder():
     """A ticket mentioned in a prompt should beat a different ticket only in
     the folder name — most-common-wins."""
     topic = assign_topic(
-        early_user_prompts=["work on COR-144", "still COR-144"],
-        project="headway-worktree-COR-122-something",
+        early_user_prompts=["work on PROJ-144", "still PROJ-144"],
+        project="myrepo-worktree-PROJ-122-something",
     )
-    assert topic == "COR-144"  # 2 mentions vs folder's 1
+    assert topic == "PROJ-144"  # 2 mentions vs folder's 1
 
 
 def test_assign_topic_falls_back_to_folder_ticket():
     topic = assign_topic(
         early_user_prompts=["just a generic question"],
-        project="headway-worktree-COR-144-foo",
+        project="myrepo-worktree-PROJ-144-foo",
     )
-    assert topic == "COR-144"
+    assert topic == "PROJ-144"
 
 
 def test_assign_topic_unclassified_when_no_ticket():
     topic = assign_topic(
         early_user_prompts=["hello", "how are you"],
-        project="headway",
+        project="myrepo",
     )
-    assert topic == "unclassified:headway"
+    assert topic == "unclassified:myrepo"
 
 
 def test_assign_topic_only_uses_first_5_prompts():
@@ -71,22 +71,22 @@ def test_assign_topic_only_uses_first_5_prompts():
         "third",
         "fourth",
         "fifth",
-        "actually it's COR-144",  # 6th — should be ignored
+        "actually it's PROJ-144",  # 6th — should be ignored
     ]
     topic = assign_topic(prompts, project="plain-project")
     assert topic == "unclassified:plain-project"
 
 
 def test_topic_display_label():
-    assert topic_display_label("COR-144") == "COR-144"
+    assert topic_display_label("PROJ-144") == "PROJ-144"
     assert topic_display_label("unclassified:my-proj") == "my-proj (no ticket)"
 
 
 def test_topic_display_label_branch_scoped():
     """Branch-scoped unclassified buckets show the branch in the label."""
     assert (
-        topic_display_label("unclassified:-Users-rpon-development-headway#main")
-        == "headway / main (no ticket)"
+        topic_display_label("unclassified:-Users-username-development-myrepo#main")
+        == "myrepo / main (no ticket)"
     )
 
 
@@ -94,29 +94,29 @@ def test_topic_display_label_branch_scoped():
 
 def test_per_record_branch_wins_over_folder():
     topic = assign_topic_for_record(
-        git_branch="feature_setup_COR-144",
-        project="headway-worktree-COR-200-foo",
+        git_branch="feature_setup_PROJ-144",
+        project="myrepo-worktree-PROJ-200-foo",
     )
-    assert topic == "COR-144"
+    assert topic == "PROJ-144"
 
 
 def test_per_record_falls_back_to_folder():
     topic = assign_topic_for_record(
         git_branch=None,
-        project="headway-worktree-COR-144-foo",
+        project="myrepo-worktree-PROJ-144-foo",
     )
-    assert topic == "COR-144"
+    assert topic == "PROJ-144"
 
 
 def test_per_record_unclassified_branch_scoped_when_branch_known():
     """No ticket anywhere but we know the branch -> bucket by branch."""
-    topic = assign_topic_for_record(git_branch="main", project="headway")
-    assert topic == "unclassified:headway#main"
+    topic = assign_topic_for_record(git_branch="main", project="myrepo")
+    assert topic == "unclassified:myrepo#main"
 
 
 def test_per_record_unclassified_no_branch_when_branch_missing():
-    topic = assign_topic_for_record(git_branch=None, project="headway")
-    assert topic == "unclassified:headway"
+    topic = assign_topic_for_record(git_branch=None, project="myrepo")
+    assert topic == "unclassified:myrepo"
 
 
 def test_per_record_no_prompt_history_fallback():
@@ -124,15 +124,15 @@ def test_per_record_no_prompt_history_fallback():
     no longer leaks attribution from prior prompts. It buckets by branch."""
     topic = assign_topic_for_record(
         git_branch="my-feature-branch",
-        project="headway",
+        project="myrepo",
     )
-    assert topic == "unclassified:headway#my-feature-branch"
+    assert topic == "unclassified:myrepo#my-feature-branch"
 
 
 def test_infer_session_ticket_returns_most_common():
     assert infer_session_ticket(
-        ["fix COR-144 webhook", "more on COR-144", "also touches DT-1890"]
-    ) == "COR-144"
+        ["fix PROJ-144 webhook", "more on PROJ-144", "also touches TASK-1890"]
+    ) == "PROJ-144"
 
 
 def test_infer_session_ticket_returns_none_when_no_ticket_mentioned():
@@ -146,5 +146,5 @@ def test_infer_session_ticket_returns_none_for_empty_prompts():
 def test_infer_session_ticket_ties_break_by_first_occurrence():
     """Counter.most_common is stable in insertion order on ties — so the
     first ticket to appear wins when counts are equal."""
-    assert infer_session_ticket(["COR-65 then DT-1890"]) == "COR-65"
-    assert infer_session_ticket(["DT-1890 then COR-65"]) == "DT-1890"
+    assert infer_session_ticket(["PROJ-65 then TASK-1890"]) == "PROJ-65"
+    assert infer_session_ticket(["TASK-1890 then PROJ-65"]) == "TASK-1890"

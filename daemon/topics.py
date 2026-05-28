@@ -1,6 +1,6 @@
 """Heuristic topic assignment.
 
-Topics are Jira-style ticket IDs (e.g. COR-144), 'unclassified:<project>'
+Topics are Jira-style ticket IDs (e.g. PROJ-144), 'unclassified:<project>'
 (no branch info) or 'unclassified:<project>#<branch>' (branch-scoped
 unclassified bucket — keeps ad-hoc work in different branches from
 collapsing into one mega-row).
@@ -21,10 +21,10 @@ from collections import Counter
 
 # Match Jira-style ticket IDs. Both ends use negative lookarounds rather
 # than `\b` because `_` is a word char in regex — so `\b` fails between
-# `_` and a letter on the left ('setup_COR-144') AND between a digit and
-# `_` on the right ('COR-185_wits...'). We want to allow `_` as a
+# `_` and a letter on the left ('setup_PROJ-144') AND between a digit and
+# `_` on the right ('PROJ-185_wits...'). We want to allow `_` as a
 # separator on both sides while still rejecting alphanumeric runs that
-# would change the ticket value (e.g. 'XCOR-144' or 'COR-1850abc').
+# would change the ticket value (e.g. 'XPROJ-144' or 'PROJ-1850abc').
 TICKET_RE = re.compile(r"(?<![A-Za-z])([A-Z]{2,5}-\d+)(?![A-Za-z0-9])")
 
 
@@ -59,8 +59,8 @@ def assign_topic_for_record(
 
     The previous version also had a "most-recent user-prompt ticket
     mention" fallback — dropped because it leaked across context
-    switches (a single mention of COR-X mid-session would tag every
-    record after that as COR-X even after the conversation moved on).
+    switches (a single mention of PROJ-X mid-session would tag every
+    record after that as PROJ-X even after the conversation moved on).
     gitBranch and folder are deterministic; ad-hoc work without either
     falls into a branch-scoped unclassified bucket below.
     """
@@ -71,8 +71,8 @@ def assign_topic_for_record(
     folder_tickets = extract_tickets(project)
     if folder_tickets:
         return folder_tickets[0]
-    # No ticket anywhere — bucket by branch within the project so the
-    # `headway` root checkout doesn't collapse all ad-hoc work into one
+    # No ticket anywhere — bucket by branch within the project so a
+    # long-lived root checkout doesn't collapse all ad-hoc work into one
     # mega-row. `unclassified:<project>` (no branch) means we don't know
     # the branch (record had no gitBranch field).
     if git_branch:
@@ -110,7 +110,7 @@ def _short_project(project: str) -> str:
     """Trim the path-encoded project name to its last segment.
 
     `~/.claude/projects/` directories look like
-    '-Users-rpon-development-headway-worktree-COR-144-foo' — we just want
+    '-Users-username-development-myrepo-worktree-PROJ-123-foo' — we just want
     the leaf. Drop the leading dash and grab the last path-like component
     (heuristic: split on '-' and take the tail after the last segment that
     looks like a 'home' path).
