@@ -14,7 +14,8 @@ install:
 
 run:
 	@echo "starting daemon (:47821) + vite dev (:5173 with /api proxy)"
-	@(uv run python -m daemon.main 2>&1 | sed 's/^/[daemon] /') & \
+	@trap 'kill 0' EXIT INT TERM; \
+	 (uv run python -m daemon.main 2>&1 | sed 's/^/[daemon] /') & \
 	 (cd ui && pnpm dev 2>&1 | sed 's/^/[vite]   /') & \
 	 wait
 
