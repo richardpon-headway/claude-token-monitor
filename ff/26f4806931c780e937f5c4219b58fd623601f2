@@ -1,0 +1,22 @@
+Makefile
+  s_069528e0b614a6::t_1ef9534bf55124 17-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "ff26f4806931c780e937f5c4219b58fd623601f2",
+  "prompts": {},
+  "sessions": {
+    "s_069528e0b614a6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "65597ee1-c419-4ee3-a059-4b772241beb5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Richard Pon <richard.pon@findheadway.com>",
+      "custom_attributes": {
+        "runtime": "local"
+      }
+    }
+  }
+}
