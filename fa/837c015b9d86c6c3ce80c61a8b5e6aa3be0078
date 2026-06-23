@@ -1,0 +1,35 @@
+daemon/topics.py
+  s_ecb0806d5727aa::t_a1e0888e9d19eb 4,6-7
+  s_ecb0806d5727aa::t_6a111c8272b678 107-109
+daemon/routes.py
+  s_ecb0806d5727aa::t_66883b42ba1265 157-166
+tests/test_topics.py
+  s_ecb0806d5727aa::t_f89f1ad1dfb969 93-99
+tests/test_routes.py
+  s_ecb0806d5727aa::t_e6d802f5c5c7a2 1-104
+tests/test_sidecar.py
+  s_ecb0806d5727aa::t_0071371f64b8b0 40-51
+tests/test_labeler.py
+  s_ecb0806d5727aa::t_677a1ab664a19f 46-48
+tests/test_rollup.py
+  s_ecb0806d5727aa::t_51431958bd79d8 342-363
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.11",
+  "base_commit_sha": "fa837c015b9d86c6c3ce80c61a8b5e6aa3be0078",
+  "prompts": {},
+  "sessions": {
+    "s_ecb0806d5727aa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cba9f908-4a37-4fef-b60c-e0ffbdb8bfb4",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Richard Pon <richard.pon@findheadway.com>",
+      "custom_attributes": {
+        "runtime": "local"
+      }
+    }
+  }
+}
