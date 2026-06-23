@@ -1,9 +1,10 @@
 """Heuristic topic assignment.
 
 Topics are Jira-style ticket IDs (e.g. PROJ-144), 'unclassified:<project>'
-(no branch info) or 'unclassified:<project>#<branch>' (branch-scoped
+(no branch info), 'unclassified:<project>#<branch>' (branch-scoped
 unclassified bucket — keeps ad-hoc work in different branches from
-collapsing into one mega-row).
+collapsing into one mega-row), or 'custom:<label>' (a free-text label
+supplied by a session sidecar, e.g. a CVI chat title).
 
 Two entry points:
   - assign_topic_for_record(git_branch, project)
@@ -103,6 +104,9 @@ def topic_display_label(topic_id: str) -> str:
             project, branch = rest.split("#", 1)
             return f"{_short_project(project)} / {branch} (no ticket)"
         return f"{_short_project(rest)} (no ticket)"
+    if topic_id.startswith("custom:"):
+        # Free-text label from a session sidecar — show it verbatim.
+        return topic_id.split(":", 1)[1]
     return topic_id
 
 

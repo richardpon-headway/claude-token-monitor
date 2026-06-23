@@ -339,6 +339,28 @@ def test_windowed_groups_session_overrides_reattribute_unclassified(make_session
     assert not any(k.startswith("unclassified:") for k in by_topic2)
 
 
+def test_windowed_groups_session_override_accepts_free_text_custom_topic(make_session):
+    """A `custom:<label>` override (e.g. a session title) re-attributes the
+    unclassified portion just like a ticket override — windowed_groups copies
+    the override string through verbatim as the aggregation key."""
+    import datetime as _dt
+    projects_dir, write, record, _now = make_session
+    fresh = _dt.datetime.now(_dt.timezone.utc).isoformat().replace("+00:00", "Z")
+    path = write("p", "s", [
+        record(msg_id="m1", timestamp=fresh, output=80, git_branch="main"),
+    ])
+    r = Rollup()
+    _ingest(r, projects_dir, path)
+
+    rows = r.windowed_groups(
+        "topic", range_minutes=60,
+        session_overrides={"s": "custom:Fix the progress bar"},
+    )
+    by_topic = {x["topic_id"]: x for x in rows}
+    assert by_topic["custom:Fix the progress bar"]["output"] == 80
+    assert not any(k.startswith("unclassified:") for k in by_topic)
+
+
 def test_windowed_groups_project_distinct_session_count(make_session):
     """Multiple sessions hitting the same project should count once each
     in the project row's `sessions` field."""

@@ -154,8 +154,16 @@ def make_router(
             if inferred:
                 session_overrides[s.session_id] = inferred
             sidecar = read_session_sidecar(s.session_id)
-            if sidecar and sidecar.get("ticket"):
-                session_overrides[s.session_id] = sidecar["ticket"]
+            if sidecar:
+                # A free-text `topic` (e.g. a CVI chat title) re-labels the
+                # session as `custom:<topic>`; topic_display_label strips the
+                # prefix. Precedence: ticket > topic > prompt-inferred, so the
+                # ticket assignment stays last and wins when both are present.
+                topic = sidecar.get("topic")
+                if isinstance(topic, str) and topic.strip():
+                    session_overrides[s.session_id] = f"custom:{topic.strip()}"
+                if sidecar.get("ticket"):
+                    session_overrides[s.session_id] = sidecar["ticket"]
         rows = [
             _jsonable(r)
             for r in rollup.windowed_groups(

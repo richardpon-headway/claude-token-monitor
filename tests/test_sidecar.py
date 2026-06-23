@@ -37,6 +37,18 @@ def test_returns_parsed_dict_when_valid(sidecar_dir: pathlib.Path):
     assert routes.read_session_sidecar("abc") == payload
 
 
+def test_returns_parsed_dict_with_free_text_topic(sidecar_dir: pathlib.Path):
+    # CVI writes a free-text `topic` (the chat title) instead of a ticket;
+    # the reader is schema-agnostic and round-trips it for the override logic.
+    payload = {
+        "session_id": "abc",
+        "started_via": "cvi",
+        "topic": "Fix the progress bar",
+    }
+    (sidecar_dir / "abc.json").write_text(json.dumps(payload))
+    assert routes.read_session_sidecar("abc") == payload
+
+
 def test_returns_none_when_json_malformed(sidecar_dir: pathlib.Path):
     (sidecar_dir / "abc.json").write_text("{not valid json")
     assert routes.read_session_sidecar("abc") is None
