@@ -90,6 +90,13 @@ def test_topic_display_label_branch_scoped():
     )
 
 
+def test_topic_display_label_custom_strips_prefix():
+    """A free-text `custom:` topic (e.g. a session title) shows verbatim."""
+    assert topic_display_label("custom:Fix the progress bar") == "Fix the progress bar"
+    # A colon in the label itself is preserved (only the first split is taken).
+    assert topic_display_label("custom:add CTM: free-text topic") == "add CTM: free-text topic"
+
+
 # --- assign_topic_for_record (per-record resolver) ---------------------
 
 def test_per_record_branch_wins_over_folder():

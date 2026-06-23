@@ -43,6 +43,9 @@ def test_is_ticket_topic():
     assert not labeler.is_ticket_topic("unclassified:myrepo")
     assert not labeler.is_ticket_topic("ABCDEF-1")  # 6 letters > 5
     assert not labeler.is_ticket_topic("proj-123")   # lowercase
+    # Free-text custom topics must never be treated as tickets, so the
+    # background labeler never shells out to acli/Jira for them.
+    assert not labeler.is_ticket_topic("custom:Fix the progress bar")
 
 
 def test_fetch_jira_summary_returns_summary_field(monkeypatch):
